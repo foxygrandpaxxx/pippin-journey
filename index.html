@@ -44,6 +44,12 @@
     font-size: 20px; cursor: pointer; backdrop-filter: blur(4px); transition: transform .12s, background .2s; display:flex; align-items:center; justify-content:center; }
   #ui button:hover { background: rgba(50,36,80,.75); transform: translateY(-2px); }
   #ui button.off { opacity: .5; }
+  /* cinematic letterbox during close-up emotional beats */
+  #bars { position: fixed; inset: 0; pointer-events: none; z-index: 3; opacity: 0; transition: opacity .9s ease; }
+  #bars::before, #bars::after { content:''; position:absolute; left:0; right:0; height: 12vh; background:#000; }
+  #bars::before { top:0; } #bars::after { bottom:0; }
+  #bars.on { opacity: 1; }
+  #mood { position: fixed; top: 56px; left: 50%; transform: translateX(-50%); z-index: 4; color:#ffe8c2; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; opacity: 0; transition: opacity .8s ease; text-shadow: 0 2px 12px rgba(0,0,0,.6); pointer-events:none; }
 </style>
 </head>
 <body>
@@ -51,7 +57,9 @@
 <div id="title"><h1>Pippin Snazzlewhistle</h1></div>
 <div id="act"></div>
 <div id="fade"></div>
-<div id="hint">drag to look around · <b>C</b> cinematic · <b>1-6</b> emotes · <b>M</b> music</div>
+<div id="bars"></div>
+<div id="mood"></div>
+<div id="hint">drag to look around · <b>C</b> cinematic · <b>1-8</b> emotes · <b>M</b> music</div>
 <div id="ui">
   <button id="btnCam" title="Camera (C)">🎥</button>
   <button id="btnEmote" title="Emote">😄</button>
@@ -347,7 +355,14 @@ let journeyZ=0, t=0, looped=false; const clock=new THREE.Clock();
 let phase='await';      // 'await' (start screen) | 'intro' (face→reveal) | 'flight'
 let camMode='cinematic';// 'cinematic' | 'free'
 let introT=0, shotIdx=0, shotT=0; const shotDur=8.5;
+// face close-up "emotional beats" — recenter on Pippin to show his reaction
+const FACE={ p:[1.5,2.8,4.7], l:[0,2.55,0.2], fov:36 };
+let faceT=0, faceNext=rand(16,26), wasFace=false;
+const barsEl=()=>document.getElementById('bars'), moodEl=()=>document.getElementById('mood');
+const MOODS=['first light','wonder','serenity','so cold!','singing in the rain','adventure','starlight'];
+function triggerFace(d){ faceT=Math.max(faceT,d); }
 const camPos=new THREE.Vector3(), camLook=new THREE.Vector3(), tmp=new THREE.Vector3(), dPos=new THREE.Vector3(), dLook=new THREE.Vector3();
+const camOff=new THREE.Vector3(), lookOff=new THREE.Vector3(); let camInit=false; // offset-based follow (no lag on the moving carpet)
 const actEl=document.getElementById('act'), fadeEl=document.getElementById('fade'); let curAct=-1, emitAcc=0;
 function setAct(i){ if(i===curAct) return; curAct=i; actEl.style.opacity='0'; setTimeout(()=>{ actEl.innerHTML=ACTS[i].name+'<small>'+ACTS[i].sub+'</small>'; actEl.style.opacity='1'; },560); }
 
@@ -368,18 +383,30 @@ const controls=new OrbitControls(camera, renderer.domElement);
 controls.enableDamping=true; controls.dampingFactor=0.08; controls.enablePan=false;
 controls.minDistance=5; controls.maxDistance=46; controls.maxPolarAngle=Math.PI*0.52; controls.enabled=false;
 const hintEl=document.getElementById('hint');
-function enterFree(){ if(camMode==='free'||phase!=='flight') return; camMode='free'; controls.enabled=true; controls.target.copy(carpet.position).y+=2; document.getElementById('btnCam').textContent='🎬'; hintEl.style.opacity='0'; }
-function enterCinematic(){ camMode='cinematic'; controls.enabled=false; camPos.copy(camera.position); document.getElementById('btnCam').textContent='🎥'; }
+function enterFree(){ if(camMode==='free'||phase!=='flight') return; camMode='free'; controls.enabled=true; controls.target.copy(carpet.position).y+=2; document.getElementById('btnCam').textContent='🎬'; hintEl.style.opacity='0'; faceT=0; wasFace=false; barsEl().classList.remove('on'); moodEl().style.opacity='0'; }
+function enterCinematic(){ camMode='cinematic'; controls.enabled=false; camOff.copy(camera.position).sub(carpet.position); lookOff.copy(controls.target).sub(carpet.position); camInit=true; document.getElementById('btnCam').textContent='🎥'; }
 renderer.domElement.addEventListener('pointerdown',()=>enterFree());
 renderer.domElement.addEventListener('wheel',()=>enterFree(),{passive:true});
 
 // ---- Emotes (procedural body language) ----
-const EMO={ hop:1.0, spin:1.4, dance:2.6, nod:1.0, cheer:1.5, wave:1.7 };
-const EMO_KEYS={'1':'hop','2':'spin','3':'dance','4':'nod','5':'cheer','6':'wave'};
+const EMO={ hop:1.0, spin:1.4, dance:2.6, nod:1.0, cheer:1.5, wave:1.7, gaze:3.4, shiver:1.8 };
+const EMO_KEYS={'1':'hop','2':'spin','3':'dance','4':'nod','5':'cheer','6':'wave','7':'gaze','8':'shiver'};
+// emotes that fit each act (auto-director draws from the current act's pool)
+const EMO_ACT=[
+  ['wave','nod','gaze'],            // 0 dawn — greet the day
+  ['gaze','gaze','nod','wave'],     // 1 stone forest — awe at the pillars
+  ['nod','wave','hop'],             // 2 alpine lakes — calm, wave at the fish
+  ['shiver','shiver','nod','hop'],  // 3 snowy pass — brr!
+  ['dance','cheer','hop','dance'],  // 4 forest rain — dancing in the rain
+  ['cheer','spin','hop','cheer'],   // 5 desert — heroic & excited
+  ['gaze','gaze','nod','wave'],     // 6 night — wonder at the stars
+];
+const ACT_SIG=['wave','gaze','wave','shiver','dance','cheer','gaze']; // signature reaction on entering each act
 let emName=null, emT=0, emDur=0, emNext=rand(4,7);
 function playEmote(n){ if(!EMO[n]) return; emName=n; emT=0; emDur=EMO[n]; }
+function pickActEmote(){ const pool=EMO_ACT[curAct]||['nod']; return pool[(Math.random()*pool.length)|0]; }
 function updateRider(dt){
-  if(phase==='flight'){ emNext-=dt; if(emNext<=0 && !emName){ const o=['hop','nod','dance','wave','cheer','spin']; playEmote(o[(Math.random()*o.length)|0]); emNext=rand(5,9); } }
+  if(phase==='flight'){ emNext-=dt; if(emNext<=0 && !emName){ playEmote(pickActEmote()); const calm=(curAct===0||curAct===2||curAct===6); emNext=calm?rand(7,12):rand(4.5,8); } }
   let py=Math.sin(t*2.2)*0.04, rx=0, ry=0, rz=Math.sin(t*1.5)*0.04, sx=1, sy=1, sz=1;
   if(emName){ emT+=dt; const p=Math.min(1,emT/emDur);
     if(emName==='hop'){ const hh=Math.sin(p*Math.PI); py+=hh*0.9; const sq=Math.sin(p*Math.PI*2)*0.10; sy+=sq; sx-=sq*0.5; sz-=sq*0.5; }
@@ -388,6 +415,8 @@ function updateRider(dt){
     else if(emName==='nod'){ rx+=Math.sin(p*Math.PI*3)*0.28; }
     else if(emName==='cheer'){ py+=Math.abs(Math.sin(p*Math.PI*2))*0.7; rx-=Math.sin(p*Math.PI)*0.18; }
     else if(emName==='wave'){ rz+=Math.sin(p*Math.PI*4)*0.22; rx-=0.06; }
+    else if(emName==='gaze'){ const up=Math.sin(p*Math.PI); rx-=up*0.38; ry+=Math.sin(t*0.9)*0.12*up; py+=up*0.1; } // lean back & look around in wonder
+    else if(emName==='shiver'){ const q=Math.sin(p*Math.PI); rz+=Math.sin(t*42)*0.05*q; rx+=Math.sin(t*38)*0.04*q; py-=0.05*q; sy-=0.04*q; } // brr
     if(emT>=emDur) emName=null;
   }
   rider.position.set(0,py,0); rider.rotation.set(rx,ry,rz); rider.scale.set(sx,sy,sz);
@@ -397,6 +426,8 @@ function updateRider(dt){
 let audio=null, musicOn=true;
 const CHORDS=[ [130.81,164.81,196.00], [110.00,130.81,164.81], [87.31,110.00,130.81], [98.00,123.47,146.83] ]; // C Am F G
 const PENTA=[523.25,587.33,659.25,783.99,880.00, 1046.5,1174.7]; // C5..D6
+// per-act mood: [pad lowpass Hz, bell density, melody octave]
+const MUSIC_MOOD=[ [620,0.42,1], [950,0.50,1], [1300,0.55,1], [780,0.40,1], [1150,0.64,1], [1500,0.56,1], [470,0.40,2] ];
 function initAudio(){ if(audio) return; const Ctx=window.AudioContext||window.webkitAudioContext; if(!Ctx) return; const ctx=new Ctx();
   const master=ctx.createGain(); master.gain.value=0; master.connect(ctx.destination);
   const dl=ctx.createDelay(0.6); dl.delayTime.value=0.34; const fb=ctx.createGain(); fb.gain.value=0.32; const wet=ctx.createGain(); wet.gain.value=0.26; dl.connect(fb); fb.connect(dl); dl.connect(wet); wet.connect(master);
@@ -404,14 +435,14 @@ function initAudio(){ if(audio) return; const Ctx=window.AudioContext||window.we
   const pads=[]; for(let i=0;i<3;i++){ const o=ctx.createOscillator(); o.type='sawtooth'; o.frequency.value=CHORDS[0][i]; const g=ctx.createGain(); g.gain.value=0.10; o.connect(g); g.connect(padGain); o.start(); pads.push(o); }
   padGain.gain.linearRampToValueAtTime(0.5, ctx.currentTime+4);
   master.gain.linearRampToValueAtTime(0.55, ctx.currentTime+3);
-  audio={ctx,master,dl,pads,padGain, next:ctx.currentTime+0.2, step:0};
+  audio={ctx,master,dl,pads,padGain,padF, next:ctx.currentTime+0.2, step:0, bellProb:0.5, octave:1};
   scheduler();
 }
 function bell(time,freq,vel){ const ctx=audio.ctx; const o=ctx.createOscillator(); o.type='triangle'; o.frequency.value=freq; const g=ctx.createGain(); g.gain.setValueAtTime(0,time); g.gain.linearRampToValueAtTime(vel,time+0.01); g.gain.exponentialRampToValueAtTime(0.001,time+1.5); o.connect(g); g.connect(audio.master); g.connect(audio.dl); o.start(time); o.stop(time+1.6); }
 function scheduler(){ if(!audio) return; const ctx=audio.ctx;
   while(audio.next < ctx.currentTime+0.3){ const s=audio.step, time=audio.next;
     if(s%16===0){ const ch=CHORDS[(s/16)%CHORDS.length]; audio.pads.forEach((o,i)=>o.frequency.linearRampToValueAtTime(ch[i], time+0.6)); }
-    if(s%2===0 && Math.random()<0.62){ const ch=CHORDS[Math.floor(s/16)%CHORDS.length]; const f=PENTA[(Math.random()*PENTA.length)|0]; bell(time, f, 0.16); if(Math.random()<0.3) bell(time+0.001, ch[0]*4, 0.05); }
+    if(s%2===0 && Math.random()<audio.bellProb){ const ch=CHORDS[Math.floor(s/16)%CHORDS.length]; const f=PENTA[(Math.random()*PENTA.length)|0]*audio.octave; bell(time, f, 0.15); if(Math.random()<0.3) bell(time+0.001, ch[0]*4, 0.05); }
     audio.next+=0.3; audio.step++;
   }
   setTimeout(scheduler,70);
@@ -486,12 +517,19 @@ function animate(){
   } else {
     let pOff, lOff, fov, k, cut=false;
     if(phase==='await'){ pOff=[0.6,2.55,4.0+Math.sin(t*0.4)*0.25]; lOff=[0,2.5,0]; fov=44; k=1-Math.pow(0.04,dt); }
-    else if(phase==='intro'){ introT+=dt/4.6; const e=ss(0,1,introT); pOff=[lerp(0.6,7,e),lerp(2.55,3.7,e),lerp(4.0,10.5,e)]; lOff=[0,lerp(2.5,2.1,e),0]; fov=lerp(44,50,e); k=1-Math.pow(0.05,dt); if(introT>=1){ phase='flight'; shotIdx=0; shotT=0; camPos.copy(camera.position); } }
-    else { shotT+=dt; if(shotT>shotDur){ shotT=0; shotIdx=(shotIdx+1)%SHOTS.length; cut=true; } const sh=SHOTS[shotIdx]; pOff=sh.p; lOff=sh.l; fov=sh.fov; k=1-Math.pow(0.006,dt); }
+    else if(phase==='intro'){ introT+=dt/4.6; const e=ss(0,1,introT); pOff=[lerp(0.6,7,e),lerp(2.55,3.7,e),lerp(4.0,10.5,e)]; lOff=[0,lerp(2.5,2.1,e),0]; fov=lerp(44,50,e); k=1-Math.pow(0.05,dt); if(introT>=1){ phase='flight'; shotIdx=0; shotT=0; } }
+    else { // flight
+      if(faceT>0){ faceT-=dt; if(!wasFace){ cut=true; wasFace=true; barsEl().classList.add('on'); moodEl().textContent=MOODS[curAct]||''; moodEl().style.opacity='1'; } pOff=FACE.p; lOff=FACE.l; fov=FACE.fov; }
+      else { if(wasFace){ cut=true; wasFace=false; barsEl().classList.remove('on'); moodEl().style.opacity='0'; shotT=0; shotIdx=(shotIdx+1)%SHOTS.length; } shotT+=dt; if(shotT>shotDur){ shotT=0; shotIdx=(shotIdx+1)%SHOTS.length; cut=true; } const sh=SHOTS[shotIdx]; pOff=sh.p; lOff=sh.l; fov=sh.fov; }
+      k=1-Math.pow(0.004,dt);
+    }
+    // smooth the OFFSET from the carpet (so fast carpet motion never lags the framing), then add live position
     place(dPos,pOff,heading); place(dLook,lOff,heading);
-    if(camPos.lengthSq()===0 || cut){ camPos.copy(dPos); camLook.copy(dLook); camera.fov=fov; camera.updateProjectionMatrix(); }
-    else { camPos.lerp(dPos,k); camLook.lerp(dLook,k); if(Math.abs(camera.fov-fov)>0.05){ camera.fov+=(fov-camera.fov)*Math.min(1,dt*1.6); camera.updateProjectionMatrix(); } }
-    camera.position.copy(camPos); camera.lookAt(camLook);
+    tmp.copy(dPos).sub(carpet.position); const tlx=dLook.x-carpet.position.x, tly=dLook.y-carpet.position.y, tlz=dLook.z-carpet.position.z;
+    if(!camInit || cut){ camOff.copy(tmp); lookOff.set(tlx,tly,tlz); camInit=true; camera.fov=fov; camera.updateProjectionMatrix(); }
+    else { camOff.lerp(tmp,k); lookOff.lerp(tmp.set(tlx,tly,tlz),k); if(Math.abs(camera.fov-fov)>0.05){ camera.fov+=(fov-camera.fov)*Math.min(1,dt*1.6); camera.updateProjectionMatrix(); } }
+    camera.position.copy(carpet.position).add(camOff);
+    camLook.copy(carpet.position).add(lookOff); camera.lookAt(camLook);
   }
 
   // rigs follow
@@ -499,8 +537,14 @@ function animate(){
   precipRig.position.copy(carpet.position);
   key.position.copy(carpet.position).addScaledVector(lightDir,90); key.target.position.copy(carpet.position);
 
-  // act label + seam fade
-  let ai=0; for(let i=0;i<ACTS.length;i++) if(z>=ACTS[i].z) ai=i; setAct(ai);
+  // act label + scene-change reaction (face close-up) + occasional mid-act beats
+  let ai=0; for(let i=0;i<ACTS.length;i++) if(z>=ACTS[i].z) ai=i;
+  if(phase==='flight'){
+    if(ai!==curAct){ triggerFace(3.2); playEmote(ACT_SIG[ai]); faceNext=rand(20,30); }   // new scene → show his reaction
+    else { faceNext-=dt; if(faceNext<=0 && faceT<=0 && camMode==='cinematic'){ triggerFace(3.0); playEmote(pickActEmote()); faceNext=rand(22,34); } }
+  }
+  setAct(ai);
+  if(audio){ const M=MUSIC_MOOD[curAct]||MUSIC_MOOD[0]; audio.padF.frequency.value += (M[0]-audio.padF.frequency.value)*Math.min(1,dt*0.5); audio.bellProb=M[1]; audio.octave=M[2]; }
   let fade=0; if(phase==='flight'){ if(z>2080) fade=ss(2080,2150,z); else if(z<40 && looped) fade=1-ss(0,40,z); } fadeEl.style.opacity=fade;
 
   renderer.render(scene,camera);

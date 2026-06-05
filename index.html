@@ -4,6 +4,16 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>Pippin Snazzlewhistle — The Carpet Journey</title>
+<meta name="theme-color" content="#1a0e3d" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Pippin Snazzlewhistle" />
+<meta property="og:description" content="A magic carpet is waiting. Tap to fly…" />
+<meta property="og:image" content="https://foxygrandpaxxx.github.io/pippin-journey/preview.png" />
+<meta property="og:url" content="https://foxygrandpaxxx.github.io/pippin-journey/" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Pippin Snazzlewhistle" />
+<meta name="twitter:description" content="A magic carpet is waiting. Tap to fly…" />
+<meta name="twitter:image" content="https://foxygrandpaxxx.github.io/pippin-journey/preview.png" />
 <style>
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; overflow: hidden; background: #05030f; font-family: "Segoe UI", system-ui, sans-serif; }
@@ -15,7 +25,25 @@
   #act small { display:block; font-size: 12px; letter-spacing: 3px; opacity:.82; margin-top:6px; font-weight:400; }
   #fade { position: fixed; inset: 0; background: #05030f; pointer-events: none; opacity: 0; }
   #loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; color: #e9deff; font-size: 15px; letter-spacing: 2px; background: #05030f; z-index: 5; }
-  #hint { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); color: #d8e2f0; font-size: 11px; letter-spacing: 1px; opacity: .4; pointer-events: none; }
+  #hint { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); color: #d8e2f0; font-size: 11px; letter-spacing: 1px; opacity: .42; pointer-events: none; text-align:center; transition: opacity .6s; }
+  /* start overlay */
+  #start { position: fixed; inset: 0; z-index: 7; display: none; flex-direction: column; align-items: center; justify-content: center;
+    background: radial-gradient(120% 90% at 50% 30%, rgba(60,30,90,.35), rgba(5,3,15,.86)); backdrop-filter: blur(2px); cursor: pointer; text-align: center; padding: 24px; }
+  #start.show { display: flex; }
+  #start h2 { margin: 0; font-size: 40px; font-weight: 800; letter-spacing: 1px;
+    background: linear-gradient(90deg,#ffe39a,#ffb3d9,#bcd0ff,#ffe39a); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; background-size: 300% auto; animation: shimmer 7s linear infinite; }
+  #start p { margin: 10px 0 26px; color: #cdbff0; font-size: 14px; letter-spacing: 2px; }
+  #start .play { display:inline-flex; align-items:center; gap:12px; padding: 16px 34px; border-radius: 40px; font-size: 19px; font-weight:700; color:#1a1030;
+    background: linear-gradient(180deg,#ffe7a6,#ffc861); box-shadow: 0 8px 30px rgba(255,190,90,.35), 0 0 0 1px rgba(255,255,255,.25) inset; animation: pulse 2.4s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{ transform: scale(1);} 50%{ transform: scale(1.05);} }
+  #start .sub { margin-top: 22px; color:#9a8fc0; font-size: 11.5px; letter-spacing: 1.5px; line-height:1.9; }
+  #start kbd { background:#2a2148; border:1px solid #4a3f70; border-radius:5px; padding:1px 6px; color:#e7deff; font-size:11px; }
+  /* control buttons */
+  #ui { position: fixed; right: 14px; bottom: 14px; z-index: 4; display: flex; gap: 9px; }
+  #ui button { width: 46px; height: 46px; border-radius: 50%; border: 1px solid rgba(255,255,255,.18); background: rgba(20,14,34,.55); color:#fff;
+    font-size: 20px; cursor: pointer; backdrop-filter: blur(4px); transition: transform .12s, background .2s; display:flex; align-items:center; justify-content:center; }
+  #ui button:hover { background: rgba(50,36,80,.75); transform: translateY(-2px); }
+  #ui button.off { opacity: .5; }
 </style>
 </head>
 <body>
@@ -23,7 +51,18 @@
 <div id="title"><h1>Pippin Snazzlewhistle</h1></div>
 <div id="act"></div>
 <div id="fade"></div>
-<div id="hint">a magic carpet journey · dawn to starlight</div>
+<div id="hint">drag to look around · <b>C</b> cinematic · <b>1-6</b> emotes · <b>M</b> music</div>
+<div id="ui">
+  <button id="btnCam" title="Camera (C)">🎥</button>
+  <button id="btnEmote" title="Emote">😄</button>
+  <button id="btnMusic" title="Music (M)">🔊</button>
+</div>
+<div id="start">
+  <h2>Pippin Snazzlewhistle</h2>
+  <p>A MAGIC CARPET JOURNEY</p>
+  <div class="play">▶ &nbsp;Begin the Journey</div>
+  <div class="sub">drag to look around &nbsp;·&nbsp; <kbd>C</kbd> cinematic / free &nbsp;·&nbsp; <kbd>1</kbd>–<kbd>6</kbd> emotes &nbsp;·&nbsp; <kbd>M</kbd> music</div>
+</div>
 
 <script type="importmap">
 { "imports": {
@@ -36,6 +75,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 const rand = (a, b) => a + Math.random() * (b - a);
 const ss = (e0, e1, x) => { const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
@@ -293,7 +333,7 @@ function glowTex(){ const c=document.createElement('canvas'); c.width=c.height=1
 const underGlow=new THREE.Mesh(new THREE.PlaneGeometry(CW*1.7,CD*1.5), new THREE.MeshBasicMaterial({map:glowTex(),transparent:true,opacity:0.7,blending:THREE.AdditiveBlending,depthWrite:false,fog:false})); underGlow.rotation.x=-Math.PI/2; underGlow.position.y=-0.45; carpet.add(underGlow);
 
 const rider=new THREE.Group(); carpet.add(rider);
-new GLTFLoader().load('./bogman-ant.glb',(gltf)=>{ const m=gltf.scene; m.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}}); const box=new THREE.Box3().setFromObject(m); const size=new THREE.Vector3(); box.getSize(size); const ctr=new THREE.Vector3(); box.getCenter(ctr); const sc=3.0/size.y; m.scale.setScalar(sc); m.position.set(-ctr.x*sc,-box.min.y*sc+0.06,-ctr.z*sc); rider.add(m); document.getElementById('loading').style.display='none'; }, undefined, e=>{ console.error(e); document.getElementById('loading').textContent='Could not load bogman-ant.glb'; });
+new GLTFLoader().load('./bogman-ant.glb',(gltf)=>{ const m=gltf.scene; m.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}}); const box=new THREE.Box3().setFromObject(m); const size=new THREE.Vector3(); box.getSize(size); const ctr=new THREE.Vector3(); box.getCenter(ctr); const sc=3.0/size.y; m.scale.setScalar(sc); m.position.set(-ctr.x*sc,-box.min.y*sc+0.06,-ctr.z*sc); rider.add(m); document.getElementById('loading').style.display='none'; document.getElementById('start').classList.add('show'); }, undefined, e=>{ console.error(e); document.getElementById('loading').textContent='Could not load bogman-ant.glb'; });
 
 // ===================== Sparkle trail (world space)
 const SPN=320; const spPos=new Float32Array(SPN*3),spCol=new Float32Array(SPN*3),spBase=new Float32Array(SPN*3),spLife=new Float32Array(SPN),spMax=new Float32Array(SPN),spVel=new Float32Array(SPN*3);
@@ -302,16 +342,94 @@ const spGeo=new THREE.BufferGeometry(); spGeo.setAttribute('position',new THREE.
 scene.add(new THREE.Points(spGeo, new THREE.PointsMaterial({size:0.5,map:softDot(),vertexColors:true,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,fog:false})));
 let spNext=0; function emitSparkle(px,py,pz){ const i=spNext; spNext=(spNext+1)%SPN; spPos[i*3]=px+rand(-1.6,1.6); spPos[i*3+1]=py+rand(-0.6,0.4); spPos[i*3+2]=pz+rand(-2.4,-0.5); spVel[i*3]=rand(-0.6,0.6); spVel[i*3+1]=rand(-1.4,-0.4); spVel[i*3+2]=rand(-3,-1.2); const c=pal[(Math.random()*pal.length)|0]; spBase[i*3]=c[0]; spBase[i*3+1]=c[1]; spBase[i*3+2]=c[2]; spCol[i*3]=c[0]; spCol[i*3+1]=c[1]; spCol[i*3+2]=c[2]; spMax[i]=spLife[i]=rand(1.2,2.4); }
 
-// ===================== Animate
-let journeyZ=0, t=0, paused=false; const clock=new THREE.Clock();
-const camPos=new THREE.Vector3(0,60,-30), camLook=new THREE.Vector3(), tmp=new THREE.Vector3();
+// ===================== Camera director, controls, emotes, music
+let journeyZ=0, t=0, looped=false; const clock=new THREE.Clock();
+let phase='await';      // 'await' (start screen) | 'intro' (face→reveal) | 'flight'
+let camMode='cinematic';// 'cinematic' | 'free'
+let introT=0, shotIdx=0, shotT=0; const shotDur=8.5;
+const camPos=new THREE.Vector3(), camLook=new THREE.Vector3(), tmp=new THREE.Vector3(), dPos=new THREE.Vector3(), dLook=new THREE.Vector3();
 const actEl=document.getElementById('act'), fadeEl=document.getElementById('fade'); let curAct=-1, emitAcc=0;
 function setAct(i){ if(i===curAct) return; curAct=i; actEl.style.opacity='0'; setTimeout(()=>{ actEl.innerHTML=ACTS[i].name+'<small>'+ACTS[i].sub+'</small>'; actEl.style.opacity='1'; },560); }
+
+// cinematic shots — offsets in the carpet's local frame (+z = forward). Front shots show his face & outfit.
+const SHOTS=[
+  {p:[0,6.5,-16],  l:[0,2.2,3], fov:52},   // classic chase
+  {p:[12,4,11],    l:[0,2.4,0], fov:46},   // front-right, sees his face
+  {p:[-12,4,11],   l:[0,2.4,0], fov:46},   // front-left
+  {p:[17,3.5,1],   l:[0,2.1,0], fov:50},   // right profile (outfit side)
+  {p:[0,2.4,-12],  l:[0,3.2,3], fov:52},   // low hero, looking up
+  {p:[4,16,-7],    l:[0,0.6,2], fov:55},   // high, looking down (top of hat)
+];
+// place a local offset into world using the carpet heading
+function place(out, off, h){ out.set(carpet.position.x + Math.cos(h)*off[0] + Math.sin(h)*off[2], carpet.position.y + off[1], carpet.position.z - Math.sin(h)*off[0] + Math.cos(h)*off[2]); return out; }
+
+// OrbitControls for free-look (rides along with Pippin)
+const controls=new OrbitControls(camera, renderer.domElement);
+controls.enableDamping=true; controls.dampingFactor=0.08; controls.enablePan=false;
+controls.minDistance=5; controls.maxDistance=46; controls.maxPolarAngle=Math.PI*0.52; controls.enabled=false;
+const hintEl=document.getElementById('hint');
+function enterFree(){ if(camMode==='free'||phase!=='flight') return; camMode='free'; controls.enabled=true; controls.target.copy(carpet.position).y+=2; document.getElementById('btnCam').textContent='🎬'; hintEl.style.opacity='0'; }
+function enterCinematic(){ camMode='cinematic'; controls.enabled=false; camPos.copy(camera.position); document.getElementById('btnCam').textContent='🎥'; }
+renderer.domElement.addEventListener('pointerdown',()=>enterFree());
+renderer.domElement.addEventListener('wheel',()=>enterFree(),{passive:true});
+
+// ---- Emotes (procedural body language) ----
+const EMO={ hop:1.0, spin:1.4, dance:2.6, nod:1.0, cheer:1.5, wave:1.7 };
+const EMO_KEYS={'1':'hop','2':'spin','3':'dance','4':'nod','5':'cheer','6':'wave'};
+let emName=null, emT=0, emDur=0, emNext=rand(4,7);
+function playEmote(n){ if(!EMO[n]) return; emName=n; emT=0; emDur=EMO[n]; }
+function updateRider(dt){
+  if(phase==='flight'){ emNext-=dt; if(emNext<=0 && !emName){ const o=['hop','nod','dance','wave','cheer','spin']; playEmote(o[(Math.random()*o.length)|0]); emNext=rand(5,9); } }
+  let py=Math.sin(t*2.2)*0.04, rx=0, ry=0, rz=Math.sin(t*1.5)*0.04, sx=1, sy=1, sz=1;
+  if(emName){ emT+=dt; const p=Math.min(1,emT/emDur);
+    if(emName==='hop'){ const hh=Math.sin(p*Math.PI); py+=hh*0.9; const sq=Math.sin(p*Math.PI*2)*0.10; sy+=sq; sx-=sq*0.5; sz-=sq*0.5; }
+    else if(emName==='spin'){ ry+=p*Math.PI*2; py+=Math.sin(p*Math.PI)*0.35; }
+    else if(emName==='dance'){ rz+=Math.sin(p*Math.PI*6)*0.26; py+=Math.abs(Math.sin(p*Math.PI*6))*0.18; }
+    else if(emName==='nod'){ rx+=Math.sin(p*Math.PI*3)*0.28; }
+    else if(emName==='cheer'){ py+=Math.abs(Math.sin(p*Math.PI*2))*0.7; rx-=Math.sin(p*Math.PI)*0.18; }
+    else if(emName==='wave'){ rz+=Math.sin(p*Math.PI*4)*0.22; rx-=0.06; }
+    if(emT>=emDur) emName=null;
+  }
+  rider.position.set(0,py,0); rider.rotation.set(rx,ry,rz); rider.scale.set(sx,sy,sz);
+}
+
+// ---- Procedural ambient music (Web Audio) ----
+let audio=null, musicOn=true;
+const CHORDS=[ [130.81,164.81,196.00], [110.00,130.81,164.81], [87.31,110.00,130.81], [98.00,123.47,146.83] ]; // C Am F G
+const PENTA=[523.25,587.33,659.25,783.99,880.00, 1046.5,1174.7]; // C5..D6
+function initAudio(){ if(audio) return; const Ctx=window.AudioContext||window.webkitAudioContext; if(!Ctx) return; const ctx=new Ctx();
+  const master=ctx.createGain(); master.gain.value=0; master.connect(ctx.destination);
+  const dl=ctx.createDelay(0.6); dl.delayTime.value=0.34; const fb=ctx.createGain(); fb.gain.value=0.32; const wet=ctx.createGain(); wet.gain.value=0.26; dl.connect(fb); fb.connect(dl); dl.connect(wet); wet.connect(master);
+  const padGain=ctx.createGain(); padGain.gain.value=0; const padF=ctx.createBiquadFilter(); padF.type='lowpass'; padF.frequency.value=850; padGain.connect(padF); padF.connect(master); padF.connect(dl);
+  const pads=[]; for(let i=0;i<3;i++){ const o=ctx.createOscillator(); o.type='sawtooth'; o.frequency.value=CHORDS[0][i]; const g=ctx.createGain(); g.gain.value=0.10; o.connect(g); g.connect(padGain); o.start(); pads.push(o); }
+  padGain.gain.linearRampToValueAtTime(0.5, ctx.currentTime+4);
+  master.gain.linearRampToValueAtTime(0.55, ctx.currentTime+3);
+  audio={ctx,master,dl,pads,padGain, next:ctx.currentTime+0.2, step:0};
+  scheduler();
+}
+function bell(time,freq,vel){ const ctx=audio.ctx; const o=ctx.createOscillator(); o.type='triangle'; o.frequency.value=freq; const g=ctx.createGain(); g.gain.setValueAtTime(0,time); g.gain.linearRampToValueAtTime(vel,time+0.01); g.gain.exponentialRampToValueAtTime(0.001,time+1.5); o.connect(g); g.connect(audio.master); g.connect(audio.dl); o.start(time); o.stop(time+1.6); }
+function scheduler(){ if(!audio) return; const ctx=audio.ctx;
+  while(audio.next < ctx.currentTime+0.3){ const s=audio.step, time=audio.next;
+    if(s%16===0){ const ch=CHORDS[(s/16)%CHORDS.length]; audio.pads.forEach((o,i)=>o.frequency.linearRampToValueAtTime(ch[i], time+0.6)); }
+    if(s%2===0 && Math.random()<0.62){ const ch=CHORDS[Math.floor(s/16)%CHORDS.length]; const f=PENTA[(Math.random()*PENTA.length)|0]; bell(time, f, 0.16); if(Math.random()<0.3) bell(time+0.001, ch[0]*4, 0.05); }
+    audio.next+=0.3; audio.step++;
+  }
+  setTimeout(scheduler,70);
+}
+function toggleMusic(){ if(!audio) return; musicOn=!musicOn; audio.master.gain.linearRampToValueAtTime(musicOn?0.55:0.0, audio.ctx.currentTime+0.4); document.getElementById('btnMusic').textContent=musicOn?'🔊':'🔇'; document.getElementById('btnMusic').classList.toggle('off',!musicOn); }
+
+// ---- Begin / input ----
+function begin(){ const s=document.getElementById('start'); if(!s.classList.contains('show')) return; s.classList.remove('show'); phase='intro'; introT=0; initAudio(); if(audio&&audio.ctx.state==='suspended') audio.ctx.resume(); setTimeout(()=>hintEl.style.opacity='',6000); }
+document.getElementById('start').addEventListener('click', begin);
+document.getElementById('btnCam').addEventListener('click', ()=> camMode==='cinematic'?enterFree():enterCinematic());
+document.getElementById('btnEmote').addEventListener('click', ()=>{ const o=['hop','spin','dance','cheer','wave']; playEmote(o[(Math.random()*o.length)|0]); });
+document.getElementById('btnMusic').addEventListener('click', toggleMusic);
+addEventListener('keydown', e=>{ const k=e.key.toLowerCase(); if(phase==='await'&&(k===' '||k==='enter')){ begin(); return; } if(k==='c'){ camMode==='cinematic'?enterFree():enterCinematic(); } else if(k==='m'){ toggleMusic(); } else if(EMO_KEYS[k]){ playEmote(EMO_KEYS[k]); } });
 
 function animate(){
   requestAnimationFrame(animate);
   const dt=Math.min(clock.getDelta(),0.05); t+=dt;
-  if(!paused){ journeyZ+=dt*SPEED; if(journeyZ>=COURSE) journeyZ-=COURSE; }
+  if(phase==='flight'){ journeyZ+=dt*SPEED; if(journeyZ>=COURSE){ journeyZ-=COURSE; looped=true; } }
   const z=journeyZ, y=altitudeAt(z), x=lateralAt(z);
 
   // time of day
@@ -332,6 +450,7 @@ function animate(){
   carpet.rotation.z=THREE.MathUtils.clamp((x-xA)*0.5,-0.35,0.35)+Math.sin(t*0.7)*0.03;
   carpet.rotation.x=THREE.MathUtils.clamp((y-yA)*0.25,-0.25,0.25)-0.05+Math.sin(t*1.1)*0.02;
   carpet.position.y+=Math.sin(t*1.3)*0.25;
+  updateRider(dt);
 
   // carpet ripple + tassels
   for(let i=0;i<rugPos.count;i++){ const bx=rugBase[i*3], by=rugBase[i*3+1]; rugPos.setZ(i, Math.sin(by*1.5+t*3)*0.22+Math.sin(bx*2.2-t*2.2)*0.10+Math.sin((bx+by)*1.1+t*1.5)*0.06); }
@@ -359,11 +478,21 @@ function animate(){
   const rbAmt=ss(1420,1480,z)*(1-ss(1520,1580,z));
   rainbow.children.forEach(c=>c.material.opacity=rbAmt*0.5);
 
-  // chase camera
-  const heading=carpet.rotation.y, back=17, up=6.5, side=Math.sin(t*0.3)*3;
-  const desired=tmp.set(carpet.position.x-Math.sin(heading)*back+Math.cos(heading)*side, carpet.position.y+up+Math.sin(t*0.5)*0.6, carpet.position.z-Math.cos(heading)*back-Math.sin(heading)*side);
-  camPos.lerp(desired,1-Math.pow(0.0015,dt)); camera.position.copy(camPos);
-  camLook.lerp(carpet.position,1-Math.pow(0.0001,dt)); camera.lookAt(camLook.x,camLook.y+1.5,camLook.z+4);
+  // ---- camera director ----
+  const heading=carpet.rotation.y;
+  if(camMode==='free'){
+    controls.target.lerp(tmp.copy(carpet.position).setY(carpet.position.y+2), 1-Math.pow(0.0008,dt));
+    controls.update();
+  } else {
+    let pOff, lOff, fov, k, cut=false;
+    if(phase==='await'){ pOff=[0.6,2.55,4.0+Math.sin(t*0.4)*0.25]; lOff=[0,2.5,0]; fov=44; k=1-Math.pow(0.04,dt); }
+    else if(phase==='intro'){ introT+=dt/4.6; const e=ss(0,1,introT); pOff=[lerp(0.6,7,e),lerp(2.55,3.7,e),lerp(4.0,10.5,e)]; lOff=[0,lerp(2.5,2.1,e),0]; fov=lerp(44,50,e); k=1-Math.pow(0.05,dt); if(introT>=1){ phase='flight'; shotIdx=0; shotT=0; camPos.copy(camera.position); } }
+    else { shotT+=dt; if(shotT>shotDur){ shotT=0; shotIdx=(shotIdx+1)%SHOTS.length; cut=true; } const sh=SHOTS[shotIdx]; pOff=sh.p; lOff=sh.l; fov=sh.fov; k=1-Math.pow(0.006,dt); }
+    place(dPos,pOff,heading); place(dLook,lOff,heading);
+    if(camPos.lengthSq()===0 || cut){ camPos.copy(dPos); camLook.copy(dLook); camera.fov=fov; camera.updateProjectionMatrix(); }
+    else { camPos.lerp(dPos,k); camLook.lerp(dLook,k); if(Math.abs(camera.fov-fov)>0.05){ camera.fov+=(fov-camera.fov)*Math.min(1,dt*1.6); camera.updateProjectionMatrix(); } }
+    camera.position.copy(camPos); camera.lookAt(camLook);
+  }
 
   // rigs follow
   skyRig.position.copy(camera.position);
@@ -372,7 +501,7 @@ function animate(){
 
   // act label + seam fade
   let ai=0; for(let i=0;i<ACTS.length;i++) if(z>=ACTS[i].z) ai=i; setAct(ai);
-  let fade=0; if(z>2080) fade=ss(2080,2150,z); else if(z<40) fade=1-ss(0,40,z); fadeEl.style.opacity=fade;
+  let fade=0; if(phase==='flight'){ if(z>2080) fade=ss(2080,2150,z); else if(z<40 && looped) fade=1-ss(0,40,z); } fadeEl.style.opacity=fade;
 
   renderer.render(scene,camera);
 }

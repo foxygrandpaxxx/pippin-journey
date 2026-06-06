@@ -38,12 +38,11 @@
   @keyframes pulse { 0%,100%{ transform: scale(1);} 50%{ transform: scale(1.05);} }
   #start .sub { margin-top: 22px; color:#9a8fc0; font-size: 11.5px; letter-spacing: 1.5px; line-height:1.9; }
   #start kbd { background:#2a2148; border:1px solid #4a3f70; border-radius:5px; padding:1px 6px; color:#e7deff; font-size:11px; }
-  /* control buttons */
-  #ui { position: fixed; right: 14px; bottom: 14px; z-index: 4; display: flex; gap: 9px; }
-  #ui button { width: 46px; height: 46px; border-radius: 50%; border: 1px solid rgba(255,255,255,.18); background: rgba(20,14,34,.55); color:#fff;
-    font-size: 20px; cursor: pointer; backdrop-filter: blur(4px); transition: transform .12s, background .2s; display:flex; align-items:center; justify-content:center; }
-  #ui button:hover { background: rgba(50,36,80,.75); transform: translateY(-2px); }
-  #ui button.off { opacity: .5; }
+  /* small greyscale mute button */
+  #mute { position: fixed; right: 12px; bottom: 12px; z-index: 4; width: 26px; height: 26px; border-radius: 50%;
+    border: 1px solid rgba(255,255,255,.28); background: rgba(255,255,255,.10); color: #e8e8e8; font-size: 12px; line-height: 1;
+    cursor: pointer; display: flex; align-items: center; justify-content: center; opacity: .45; transition: opacity .2s; padding: 0; filter: grayscale(1); }
+  #mute:hover { opacity: .85; }
   /* cinematic letterbox during close-up emotional beats */
   #bars { position: fixed; inset: 0; pointer-events: none; z-index: 3; opacity: 0; transition: opacity .9s ease; }
   #bars::before, #bars::after { content:''; position:absolute; left:0; right:0; height: 12vh; background:#000; }
@@ -59,17 +58,13 @@
 <div id="fade"></div>
 <div id="bars"></div>
 <div id="mood"></div>
-<div id="hint">drag to look around · <b>C</b> cinematic · <b>1-8</b> emotes · <b>M</b> music</div>
-<div id="ui">
-  <button id="btnCam" title="Camera (C)">🎥</button>
-  <button id="btnEmote" title="Emote">😄</button>
-  <button id="btnMusic" title="Music (M)">🔊</button>
-</div>
+<div id="hint">drag to look around · tap Pippin to say hi</div>
+<button id="mute" title="Mute / unmute (M)">♪</button>
 <div id="start">
   <h2>Pippin Snazzlewhistle</h2>
   <p>A MAGIC CARPET JOURNEY</p>
   <div class="play">▶ &nbsp;Begin the Journey</div>
-  <div class="sub">drag to look around &nbsp;·&nbsp; <kbd>C</kbd> cinematic / free &nbsp;·&nbsp; <kbd>1</kbd>–<kbd>6</kbd> emotes &nbsp;·&nbsp; <kbd>M</kbd> music</div>
+  <div class="sub">drag to look around &nbsp;·&nbsp; tap Pippin to react &nbsp;·&nbsp; <kbd>C</kbd> cinematic / free</div>
 </div>
 
 <script type="importmap">
@@ -99,13 +94,15 @@ document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(0xcfdcea, 0.0024);
-const camera = new THREE.PerspectiveCamera(52, innerWidth / innerHeight, 0.1, 2000);
+const camera = new THREE.PerspectiveCamera(52, innerWidth / innerHeight, 0.1, 6000);
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 
 // ===================== Course & path
-const COURSE = 2150, SPEED = 30;
-const ALT = [[0,50],[260,50],[360,28],[640,28],[720,13],[960,13],[1020,30],[1160,30],[1220,16],[1460,16],[1540,22],[1820,22],[1900,40],[1980,56],[2150,50]];
+const COURSE = 3370;
+const speedAt = (z) => 30 + 52*ss(2150,2780,z); // accelerates as he heads into deep space
+const BH_Z = 3150; // black-hole climax begins here (journey freezes for the finale)
+const ALT = [[0,50],[260,50],[360,28],[640,28],[720,13],[960,13],[1020,30],[1160,30],[1220,16],[1460,16],[1540,22],[1820,22],[1900,40],[1980,56],[2150,62],[3150,66],[3370,52]];
 function altitudeAt(z){ for(let i=0;i<ALT.length-1;i++){const[z0,y0]=ALT[i],[z1,y1]=ALT[i+1]; if(z>=z0&&z<=z1) return lerp(y0,y1,ss(z0,z1,z));} return ALT[ALT.length-1][1]; }
 function lateralAt(z){ return Math.sin(z*0.011)*6 + Math.sin(z*0.027)*2.2; }
 // keep a clear flight corridor: solids must stay this far (plus their radius) from the path
@@ -119,6 +116,11 @@ const ACTS = [
   { z: 1200, name: 'The Endless Forest',    sub: 'a sea of green' },
   { z: 1530, name: 'The Desert Mesas',      sub: 'monoliths in golden light' },
   { z: 1890, name: 'Under the Milky Way',   sub: 'the night sky' },
+  { z: 2160, name: 'Beyond the Stars',      sub: 'past the moon' },
+  { z: 2400, name: 'Worlds Without End',    sub: 'a thousand wandering worlds' },
+  { z: 2640, name: 'The Asteroid Belt',     sub: 'through the drifting rocks' },
+  { z: 2880, name: 'The Great Spiral',      sub: 'galaxies and nebulae' },
+  { z: 3150, name: 'The Event Horizon',     sub: 'into the infinite' },
 ];
 
 // ===================== Time of day
@@ -132,6 +134,8 @@ const TOD = [
   { z:1900, top:C(0x27285c), mid:C(0xd0685a), bot:C(0xff9a5a), light:C(0xff8a5a), lightI:1.5, hemiI:0.52, fog:C(0xc4796a), fogD:0.0028, sunCol:C(0xff7a4a), sunElev:0.05, sunSize:38, night:0.18 },
   { z:2050, top:C(0x05030f), mid:C(0x0c1430), bot:C(0x161e44), light:C(0x9fb4e0), lightI:0.55,hemiI:0.34, fog:C(0x070b1e), fogD:0.0020, sunCol:C(0x223052), sunElev:-0.25,sunSize:16, night:1.0 },
   { z:2150, top:C(0x05030f), mid:C(0x0c1430), bot:C(0x161e44), light:C(0x9fb4e0), lightI:0.55,hemiI:0.34, fog:C(0x070b1e), fogD:0.0020, sunCol:C(0x223052), sunElev:-0.25,sunSize:16, night:1.0 },
+  { z:2300, top:C(0x02030a), mid:C(0x04060f), bot:C(0x070914), light:C(0x8fa6d6), lightI:0.55,hemiI:0.30, fog:C(0x01020a), fogD:0.0065, sunCol:C(0x223052), sunElev:-0.3, sunSize:14, night:1.0 },
+  { z:3370, top:C(0x010208), mid:C(0x03040c), bot:C(0x05060f), light:C(0x8fa6d6), lightI:0.55,hemiI:0.28, fog:C(0x01010a), fogD:0.0065, sunCol:C(0x223052), sunElev:-0.3, sunSize:14, night:1.0 },
 ];
 const tod = { top:C(0), mid:C(0), bot:C(0), light:C(0), lightI:2, hemiI:0.8, fog:C(0), fogD:0.0024, sunCol:C(0), sunElev:0.4, sunSize:22, night:0 };
 function todAt(z){
@@ -294,6 +298,70 @@ for(let i=0;i<12;i++) addCloud(rand(-70,70),rand(6,26),rand(320,680),rand(1.6,3.
 for(let i=0;i<6;i++)  addCloud(rand(-60,60),rand(4,12),rand(720,1000),rand(1.4,2.4),rand(0.25,0.45));  // lake wisps
 for(let i=0;i<18;i++) addCloud(rand(-150,150),rand(34,60),rand(1860,2200),rand(1.5,2.6),rand(0.7,0.95)); // night cloud sea
 
+// ===================== Deep space (moon flyby → planets → galaxies → black hole)
+const spaceGroup=new THREE.Group(); spaceGroup.visible=false; scene.add(spaceGroup);
+const planets=[]; const galaxSpin=[];
+// big moon he flies past
+const bigMoon=new THREE.Mesh(new THREE.SphereGeometry(46,40,32), new THREE.MeshStandardMaterial({color:0xcfd2d8, emissive:0x5a6473, emissiveIntensity:0.4, roughness:1, fog:false}));
+bigMoon.position.set(86,72,2250); spaceGroup.add(bigMoon);
+for(let i=0;i<7;i++){ const a=rand(0,6.28),b=rand(0.3,1.5); const n=new THREE.Vector3(Math.cos(a)*Math.sin(b),Math.cos(b),Math.sin(a)*Math.sin(b)); const cr=new THREE.Mesh(new THREE.SphereGeometry(rand(5,11),16,12), new THREE.MeshStandardMaterial({color:0xb3b7bf, emissive:0x40495a, emissiveIntensity:0.3, roughness:1})); cr.position.copy(n).multiplyScalar(44); cr.scale.z=0.4; cr.lookAt(0,0,0); bigMoon.add(cr); }
+function planet(x,y,z,r,color,opts={}){ const g=new THREE.Group(); const col=new THREE.Color(color); const mats=[];
+  const mainMat=new THREE.MeshStandardMaterial({color, emissive:col.clone().multiplyScalar(0.3), emissiveIntensity:1, roughness:0.85, metalness:0.0, fog:false, transparent:true}); g.add(new THREE.Mesh(new THREE.SphereGeometry(r,40,30), mainMat)); mats.push([mainMat,1]);
+  if(opts.patches){ const pm=new THREE.MeshStandardMaterial({color:opts.patches, emissive:new THREE.Color(opts.patches).multiplyScalar(0.35), roughness:1, fog:false, transparent:true}); for(let i=0;i<8;i++){ const a=rand(0,6.28),b=rand(0.2,2.9); const n=new THREE.Vector3(Math.cos(a)*Math.sin(b),Math.cos(b),Math.sin(a)*Math.sin(b)); const p=new THREE.Mesh(new THREE.SphereGeometry(rand(r*0.2,r*0.45),16,12), pm); p.position.copy(n).multiplyScalar(r*0.92); p.scale.z=0.3; p.lookAt(0,0,0); g.add(p);} mats.push([pm,1]); }
+  if(opts.ring){ const rm=new THREE.MeshBasicMaterial({color:opts.ring, transparent:true, opacity:0.55, side:THREE.DoubleSide, blending:THREE.AdditiveBlending, depthWrite:false, fog:false}); const ring=new THREE.Mesh(new THREE.RingGeometry(r*1.4,r*2.2,64), rm); ring.rotation.x=rand(1.0,1.5); ring.rotation.y=rand(-0.4,0.4); g.add(ring); mats.push([rm,0.55]); }
+  g.position.set(x,y,z); g.userData={spin:rand(0.04,0.12)*(Math.random()<0.5?1:-1), mats}; planets.push(g); spaceGroup.add(g); return g; }
+planet(-96,80,2380,32,0xc9853a,{ring:0xf0d090});                 // ringed amber giant
+planet(96,54,2520,22,0x2f6fd0,{patches:0x39a35a});               // ocean world with green continents
+planet(125,90,2660,17,0x8a5bd6);                                  // violet
+planet(-70,56,2800,27,0xb83a26,{patches:0xe07a4a});              // red banded world
+planet(66,42,2930,19,0x2ec7c0,{patches:0x9ff0e8});               // teal
+planet(-115,66,3030,14,0xd0c060);                                 // pale gold moonlet
+// galaxies + nebulae
+function galaxyTex(){ const s=256,c=document.createElement('canvas'); c.width=c.height=s; const x=c.getContext('2d'); x.translate(s/2,s/2);
+  const cg=x.createRadialGradient(0,0,0,0,0,s*0.16); cg.addColorStop(0,'rgba(255,250,235,0.95)'); cg.addColorStop(0.5,'rgba(255,225,180,0.5)'); cg.addColorStop(1,'rgba(255,200,150,0)'); x.fillStyle=cg; x.beginPath(); x.arc(0,0,s*0.18,0,7); x.fill();
+  for(let arm=0;arm<2;arm++){ for(let i=0;i<360;i++){ const t=i/360; const ang=arm*Math.PI + t*5.0; const rr=t*s*0.46; const px=Math.cos(ang)*rr, py=Math.sin(ang)*rr; const a=(1-t)*0.5; const cc=t<0.5?`rgba(180,205,255,${a})`:`rgba(200,170,255,${a})`; x.fillStyle=cc; x.beginPath(); x.arc(px,py,rand(0.6,2.4)*(1-t)+0.6,0,7); x.fill(); } }
+  return new THREE.CanvasTexture(c); }
+function galaxy3(x,y,z,r,rotx,roty){ const m=new THREE.Mesh(new THREE.PlaneGeometry(r*2,r*2), new THREE.MeshBasicMaterial({map:galaxyTex(),transparent:true,opacity:0.9,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,fog:false})); m.position.set(x,y,z); m.rotation.set(rotx,roty,rand(0,6.28)); m.userData.spin=rand(0.02,0.05); galaxSpin.push(m); spaceGroup.add(m); return m; }
+galaxy3(-185,120,2980,155,1.1,0.4); galaxy3(215,40,3060,125,0.7,-0.5); galaxy3(45,155,2920,95,1.3,0.2); galaxy3(-90,-30,3080,80,0.9,0.8);
+// nebula clouds
+const nebTex=softDot(); const nebCols=[0x6a5acd,0xc0506a,0x3a7bd0,0x9b5bd0,0x2ec7a0];
+for(let i=0;i<90;i++){ const m=new THREE.Mesh(new THREE.PlaneGeometry(1,1), new THREE.MeshBasicMaterial({map:nebTex,color:nebCols[(Math.random()*nebCols.length)|0],transparent:true,opacity:rand(0.05,0.16),blending:THREE.AdditiveBlending,depthWrite:false,fog:false})); const s=rand(40,150); m.scale.set(s,s,1); m.position.set(rand(-280,280),rand(-50,190),rand(2300,3180)); m.userData.bb=true; spaceGroup.add(m); }
+// extra dense starfield for space (world stars he flies through)
+(function(){ const N=1300,pos=new Float32Array(N*3); for(let i=0;i<N;i++){ pos[i*3]=rand(-320,320); pos[i*3+1]=rand(-110,280); pos[i*3+2]=rand(2150,3300); } const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(pos,3)); spaceGroup.add(new THREE.Points(g,new THREE.PointsMaterial({color:0xffffff,size:1.3,sizeAttenuation:true,transparent:true,opacity:0.9,depthWrite:false,fog:false}))); })();
+// ----- Asteroid belt (he threads through the drifting rocks) -----
+const astMat=[0x6b6258,0x7a6f60,0x585048,0x837868].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:1,flatShading:true,fog:false}));
+const asteroids=[];
+for(let i=0;i<90;i++){ const z=rand(2620,2900); let x=(Math.random()<0.5?-1:1)*rand(10,140); const r=rand(1.2,6); if(!pathClear(x,z,r,9)) x+=(x<0?-1:1)*22; const a=new THREE.Mesh(new THREE.IcosahedronGeometry(r,0), astMat[(Math.random()*astMat.length)|0]); a.position.set(x, 66+rand(-40,42), z); a.rotation.set(rand(0,6.28),rand(0,6.28),rand(0,6.28)); a.userData={rx:rand(-0.5,0.5),ry:rand(-0.5,0.5),drift:rand(-1.5,1.5)}; asteroids.push(a); spaceGroup.add(a); }
+// ----- A passing UFO -----
+const ufo=new THREE.Group();
+const ufoBody=new THREE.Mesh(new THREE.SphereGeometry(4,24,12), new THREE.MeshStandardMaterial({color:0x9aa6b2,metalness:0.8,roughness:0.25,emissive:0x223044,emissiveIntensity:0.4,fog:false})); ufoBody.scale.set(1,0.32,1); ufo.add(ufoBody);
+const ufoDome=new THREE.Mesh(new THREE.SphereGeometry(2,20,12,0,Math.PI*2,0,Math.PI/2), new THREE.MeshStandardMaterial({color:0x8fd0ff,transparent:true,opacity:0.6,emissive:0x4a90c0,emissiveIntensity:0.6,roughness:0.1,fog:false})); ufoDome.position.y=0.7; ufo.add(ufoDome);
+const ufoRing=new THREE.Mesh(new THREE.TorusGeometry(4.1,0.35,10,28), new THREE.MeshStandardMaterial({color:0x556070,metalness:0.9,roughness:0.3,fog:false})); ufoRing.rotation.x=Math.PI/2; ufo.add(ufoRing);
+const ufoLights=[]; for(let i=0;i<8;i++){ const a=i/8*Math.PI*2; const l=new THREE.Mesh(new THREE.SphereGeometry(0.32,10,8), new THREE.MeshBasicMaterial({color:0xffe26a,fog:false})); l.position.set(Math.cos(a)*3.4,-0.2,Math.sin(a)*3.4); ufo.add(l); ufoLights.push(l); }
+const ufoBeam=new THREE.Mesh(new THREE.ConeGeometry(3.4,9,20,1,true), new THREE.MeshBasicMaterial({color:0x8fe0a0,transparent:true,opacity:0.12,side:THREE.DoubleSide,depthWrite:false,blending:THREE.AdditiveBlending,fog:false})); ufoBeam.position.y=-5; ufo.add(ufoBeam);
+ufo.position.set(120,98,2760); ufo.userData={t:rand(0,6)}; spaceGroup.add(ufo);
+// black hole
+const blackHole=new THREE.Group(); blackHole.position.set(0,66,BH_Z+62); spaceGroup.add(blackHole);
+const bhHorizon=new THREE.Mesh(new THREE.SphereGeometry(15,48,36), new THREE.MeshBasicMaterial({color:0x000000})); blackHole.add(bhHorizon);
+const bhDisk=new THREE.Group(); bhDisk.rotation.x=Math.PI/2.35; bhDisk.rotation.z=0.2; blackHole.add(bhDisk);
+[[16,22,0xfff0c8,0.6],[22,30,0xffb060,0.5],[30,40,0xff6a3a,0.42],[40,50,0x5a86ff,0.32]].forEach(([ri,ro,c,o])=>{ const m=new THREE.Mesh(new THREE.RingGeometry(ri,ro,120), new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:o,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,depthWrite:false,fog:false})); bhDisk.add(m); });
+const bhRing=new THREE.Mesh(new THREE.TorusGeometry(15.4,0.45,16,96), new THREE.MeshBasicMaterial({color:0xffe9c0,transparent:true,opacity:0.9,blending:THREE.AdditiveBlending,depthWrite:false,fog:false})); blackHole.add(bhRing);
+const bhHalo=new THREE.Mesh(new THREE.SphereGeometry(19,32,24), new THREE.MeshBasicMaterial({color:0x6aa0ff,transparent:true,opacity:0.14,blending:THREE.AdditiveBlending,side:THREE.BackSide,depthWrite:false,fog:false})); blackHole.add(bhHalo);
+// his face, projected flat onto the front surface of the event horizon (revealed at the climax)
+const faceMat=new THREE.ShaderMaterial({ uniforms:{ map:{value:null}, uOp:{value:0} }, transparent:true, depthWrite:false, fog:false,
+  vertexShader:`varying vec3 vN; void main(){ vN=normalize(normal); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+  fragmentShader:`uniform sampler2D map; uniform float uOp; varying vec3 vN; void main(){ if(vN.z>-0.02||uOp<=0.001) discard; vec2 uv=vec2(0.5+vN.x*0.64, 0.5+vN.y*0.64); vec4 c=texture2D(map,uv); float rim=smoothstep(-0.02,-0.32,vN.z); gl_FragColor=vec4(c.rgb, c.a*uOp*rim); }` });
+const faceSphere=new THREE.Mesh(new THREE.SphereGeometry(15.12,64,48), faceMat); blackHole.add(faceSphere);
+// finale vortex — his colours spiralling into the singularity
+const VN=520; const vxPos=new Float32Array(VN*3), vxCol=new Float32Array(VN*3), vxA=new Float32Array(VN), vxR=new Float32Array(VN), vxY=new Float32Array(VN), vxS=new Float32Array(VN);
+const vxPal=[[1,.85,.4],[1,.5,.7],[.6,.75,1],[.7,.45,.95],[.4,.9,.85],[1,.95,.85]];
+for(let i=0;i<VN;i++){ vxA[i]=rand(0,6.28); vxR[i]=rand(8,46); vxY[i]=rand(-14,14); vxS[i]=rand(0.6,1.7); const c=vxPal[(Math.random()*vxPal.length)|0]; vxCol[i*3]=c[0]; vxCol[i*3+1]=c[1]; vxCol[i*3+2]=c[2]; }
+const vxGeo=new THREE.BufferGeometry(); vxGeo.setAttribute('position',new THREE.BufferAttribute(vxPos,3)); vxGeo.setAttribute('color',new THREE.BufferAttribute(vxCol,3));
+const vortex=new THREE.Points(vxGeo, new THREE.PointsMaterial({size:0.85,map:softDot(),vertexColors:true,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending,fog:false})); vortex.visible=false; blackHole.add(vortex);
+function updateVortex(dt,intensity){ vortex.visible=intensity>0.01; vortex.material.opacity=Math.min(1,intensity); if(intensity<=0.01) return;
+  for(let i=0;i<VN;i++){ const sp=vxS[i]; vxA[i]+=dt*(1.6+(46-vxR[i])*0.10)*sp; vxR[i]-=dt*(4+(46-vxR[i])*0.16)*sp; if(vxR[i]<0.6){ vxR[i]=rand(34,48); vxA[i]=rand(0,6.28); vxY[i]=rand(-14,14); } const r=vxR[i],a=vxA[i],f=r/46; vxPos[i*3]=Math.cos(a)*r; vxPos[i*3+1]=vxY[i]*f*f; vxPos[i*3+2]=Math.sin(a)*r; }
+  vxGeo.attributes.position.needsUpdate=true; }
+
 // ===================== Birds (flocks)
 const birds=[]; const birdMat=new THREE.MeshStandardMaterial({color:0x2a2a30,roughness:1,flatShading:true});
 function wingGeo(){ const g=new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute([0,0,0, 1.1,0,-0.25, 1.1,0,0.55],3)); g.computeVertexNormals(); return g; }
@@ -341,7 +409,27 @@ function glowTex(){ const c=document.createElement('canvas'); c.width=c.height=1
 const underGlow=new THREE.Mesh(new THREE.PlaneGeometry(CW*1.7,CD*1.5), new THREE.MeshBasicMaterial({map:glowTex(),transparent:true,opacity:0.7,blending:THREE.AdditiveBlending,depthWrite:false,fog:false})); underGlow.rotation.x=-Math.PI/2; underGlow.position.y=-0.45; carpet.add(underGlow);
 
 const rider=new THREE.Group(); carpet.add(rider);
-new GLTFLoader().load('./bogman-ant.glb',(gltf)=>{ const m=gltf.scene; m.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}}); const box=new THREE.Box3().setFromObject(m); const size=new THREE.Vector3(); box.getSize(size); const ctr=new THREE.Vector3(); box.getCenter(ctr); const sc=3.0/size.y; m.scale.setScalar(sc); m.position.set(-ctr.x*sc,-box.min.y*sc+0.06,-ctr.z*sc); rider.add(m); document.getElementById('loading').style.display='none'; document.getElementById('start').classList.add('show'); }, undefined, e=>{ console.error(e); document.getElementById('loading').textContent='Could not load bogman-ant.glb'; });
+let riderModel=null; let eyeClose=0; const eyelidMeshes=[]; const faceLocal=new THREE.Vector3();
+new GLTFLoader().load('./bogman-ant.glb',(gltf)=>{ const m=gltf.scene; let bodyColor=new THREE.Color(0xb1471f), bv=0;
+  m.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=true; if(o.material&&o.material.color){ if(!o.geometry.boundingBox) o.geometry.computeBoundingBox(); const s=new THREE.Vector3(); o.geometry.boundingBox.getSize(s); const vol=s.x*s.y*s.z; if(vol>bv){ bv=vol; bodyColor=o.material.color.clone(); } } } });
+  const box=new THREE.Box3().setFromObject(m); const size=new THREE.Vector3(); box.getSize(size); const ctr=new THREE.Vector3(); box.getCenter(ctr); const sc=3.0/size.y; m.scale.setScalar(sc); m.position.set(-ctr.x*sc,-box.min.y*sc+0.06,-ctr.z*sc);
+  // capture his (eyes-open, smiling) face to a texture for the black-hole climax — render the model alone, transparent bg
+  try {
+    const faceRT=new THREE.WebGLRenderTarget(512,512,{minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter});
+    const capScene=new THREE.Scene(); capScene.add(new THREE.AmbientLight(0xffffff,0.85)); const capL=new THREE.DirectionalLight(0xffffff,1.3); capL.position.set(0.4,0.7,1.4); capScene.add(capL); capScene.add(m);
+    const fwx=m.position.x, fwy=m.position.y+sc*1.62, fwz=m.position.z+sc*2.0;
+    const capCam=new THREE.PerspectiveCamera(34,1,0.1,100); capCam.position.set(fwx,fwy,fwz+3.4); capCam.lookAt(fwx,fwy,fwz);
+    const pT=renderer.getRenderTarget(); const pCC=new THREE.Color(); renderer.getClearColor(pCC); const pA=renderer.getClearAlpha();
+    renderer.setRenderTarget(faceRT); renderer.setClearColor(0x000000,0); renderer.clear(); renderer.render(capScene,capCam);
+    renderer.setRenderTarget(pT); renderer.setClearColor(pCC,pA);
+    faceMat.uniforms.map.value=faceRT.texture;
+  } catch(err){ console.error('face capture failed', err); }
+  rider.add(m); riderModel=m;
+  // eyelids over the eyes (editor model: eyes at (±0.30,1.88,2.0), r≈0.205) — for closing his eyes in the finale
+  const eyeR=sc*0.205, lidMat=new THREE.MeshStandardMaterial({color:bodyColor, roughness:0.5, metalness:0.05});
+  [1,-1].forEach(side=>{ const lid=new THREE.Mesh(new THREE.SphereGeometry(eyeR*1.16,20,16), lidMat); lid.position.set(m.position.x+sc*0.30*side, m.position.y+sc*1.88, m.position.z+sc*2.0+eyeR*0.22); lid.scale.setScalar(0.0001); rider.add(lid); eyelidMeshes.push(lid); });
+  faceLocal.set(m.position.x, m.position.y+sc*1.66, m.position.z+sc*2.0); // face centre (rider-local), for the finale
+  document.getElementById('loading').style.display='none'; document.getElementById('start').classList.add('show'); }, undefined, e=>{ console.error(e); document.getElementById('loading').textContent='Could not load bogman-ant.glb'; });
 
 // ===================== Sparkle trail (world space)
 const SPN=320; const spPos=new Float32Array(SPN*3),spCol=new Float32Array(SPN*3),spBase=new Float32Array(SPN*3),spLife=new Float32Array(SPN),spMax=new Float32Array(SPN),spVel=new Float32Array(SPN*3);
@@ -350,63 +438,90 @@ const spGeo=new THREE.BufferGeometry(); spGeo.setAttribute('position',new THREE.
 scene.add(new THREE.Points(spGeo, new THREE.PointsMaterial({size:0.5,map:softDot(),vertexColors:true,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,fog:false})));
 let spNext=0; function emitSparkle(px,py,pz){ const i=spNext; spNext=(spNext+1)%SPN; spPos[i*3]=px+rand(-1.6,1.6); spPos[i*3+1]=py+rand(-0.6,0.4); spPos[i*3+2]=pz+rand(-2.4,-0.5); spVel[i*3]=rand(-0.6,0.6); spVel[i*3+1]=rand(-1.4,-0.4); spVel[i*3+2]=rand(-3,-1.2); const c=pal[(Math.random()*pal.length)|0]; spBase[i*3]=c[0]; spBase[i*3+1]=c[1]; spBase[i*3+2]=c[2]; spCol[i*3]=c[0]; spCol[i*3+1]=c[1]; spCol[i*3+2]=c[2]; spMax[i]=spLife[i]=rand(1.2,2.4); }
 
+// ===================== Shooting stars (a surprise in the night & in space; he gazes up at them)
+const shooters=[]; const YAXIS=new THREE.Vector3(0,1,0);
+for(let i=0;i<2;i++){ const g=new THREE.Group(); const tail=new THREE.Mesh(new THREE.CylinderGeometry(0.015,0.16,7,6), new THREE.MeshBasicMaterial({color:0xbfe0ff,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,fog:false})); tail.position.y=-3.5; g.add(tail); const head=new THREE.Mesh(new THREE.SphereGeometry(0.22,10,8), new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,fog:false})); g.add(head); g.visible=false; g.userData={life:0,max:1,vel:new THREE.Vector3(),tail,head}; scene.add(g); shooters.push(g); }
+let shootNext=rand(3,7);
+
 // ===================== Camera director, controls, emotes, music
 let journeyZ=0, t=0, looped=false; const clock=new THREE.Clock();
 let phase='await';      // 'await' (start screen) | 'intro' (face→reveal) | 'flight'
 let camMode='cinematic';// 'cinematic' | 'free'
-let introT=0, shotIdx=0, shotT=0; const shotDur=8.5;
-// face close-up "emotional beats" — recenter on Pippin to show his reaction
-const FACE={ p:[1.5,2.8,4.7], l:[0,2.55,0.2], fov:36 };
-let faceT=0, faceNext=rand(16,26), wasFace=false;
+let introT=0, cl=0; // cl = camera "closeness": 0 = steady follow, 1 = intro/start face
+let orbActive=false, orbT=0, orbDur=13, orbAmt=0, orbNext=rand(22,38); // occasional slow rotation around him
+let inFinale=false, finT=0; const camTarget=new THREE.Vector3(); // black-hole climax
 const barsEl=()=>document.getElementById('bars'), moodEl=()=>document.getElementById('mood');
-const MOODS=['first light','wonder','serenity','so cold!','singing in the rain','adventure','starlight'];
-function triggerFace(d){ faceT=Math.max(faceT,d); }
 const camPos=new THREE.Vector3(), camLook=new THREE.Vector3(), tmp=new THREE.Vector3(), dPos=new THREE.Vector3(), dLook=new THREE.Vector3();
 const camOff=new THREE.Vector3(), lookOff=new THREE.Vector3(); let camInit=false; // offset-based follow (no lag on the moving carpet)
 const actEl=document.getElementById('act'), fadeEl=document.getElementById('fade'); let curAct=-1, emitAcc=0;
 function setAct(i){ if(i===curAct) return; curAct=i; actEl.style.opacity='0'; setTimeout(()=>{ actEl.innerHTML=ACTS[i].name+'<small>'+ACTS[i].sub+'</small>'; actEl.style.opacity='1'; },560); }
 
-// cinematic shots — offsets in the carpet's local frame (+z = forward). Front shots show his face & outfit.
-const SHOTS=[
-  {p:[0,6.5,-16],  l:[0,2.2,3], fov:52},   // classic chase
-  {p:[12,4,11],    l:[0,2.4,0], fov:46},   // front-right, sees his face
-  {p:[-12,4,11],   l:[0,2.4,0], fov:46},   // front-left
-  {p:[17,3.5,1],   l:[0,2.1,0], fov:50},   // right profile (outfit side)
-  {p:[0,2.4,-12],  l:[0,3.2,3], fov:52},   // low hero, looking up
-  {p:[4,16,-7],    l:[0,0.6,2], fov:55},   // high, looking down (top of hat)
-];
-// place a local offset into world using the carpet heading
-function place(out, off, h){ out.set(carpet.position.x + Math.cos(h)*off[0] + Math.sin(h)*off[2], carpet.position.y + off[1], carpet.position.z - Math.sin(h)*off[0] + Math.cos(h)*off[2]); return out; }
+// Camera: mostly a steady, free-view-like follow (behind, gently swaying), with the occasional
+// slow rotation around Pippin at key moments, and a single subtle face zoom as he enters space.
+function updateOrbitCamera(dt){
+  const h=carpet.rotation.y;
+  const fcY=faceLocal.y>0.5?faceLocal.y:2.0;
+  const focusY=lerp(fcY-0.5, fcY, cl);
+  const fx=carpet.position.x, fy=carpet.position.y+focusY, fz=carpet.position.z;
+  // base: steady behind with a very gentle sway
+  let az=Math.sin(t*0.03)*0.18;
+  // occasional gentle swing out to a side profile and back (shows the scene from a new angle; same distance)
+  if(cl<0.08){
+    if(orbActive){ orbT+=dt; const op=orbT/orbDur; if(op>=1){ orbActive=false; orbNext=rand(26,42); } else { az += Math.sin(op*Math.PI)*orbAmt; } }
+    else { orbNext-=dt; if(orbNext<=0 && phase==='flight'){ orbActive=true; orbT=0; orbDur=rand(10,14); orbAmt=(Math.random()<0.5?1:-1)*rand(0.9,1.3); } }
+  }
+  // single subtle zoom toward a front-3/4 of his face as he enters space (cl is driven by z)
+  az=lerp(az, Math.PI-0.5, ss(0.04,0.5,cl));
+  const el=lerp(0.18 + Math.sin(t*0.024)*0.05, 0.12, cl);
+  const dist=lerp(16.5 + Math.sin(t*0.02)*0.9, 5.6, cl);        // base pulled back so the landscapes read; zoom only a little closer
+  const fov=lerp(50,43,cl);
+  const ce=Math.cos(el),se=Math.sin(el),sa=Math.sin(az),ca=Math.cos(az);
+  const lx=ce*sa*dist, ly=se*dist, lz=-ce*ca*dist;             // az=0 → behind; az=π → in front (face)
+  dPos.set(Math.cos(h)*lx+Math.sin(h)*lz, ly, -Math.sin(h)*lx+Math.cos(h)*lz);
+  if(!camInit){ camOff.copy(dPos); camInit=true; } else camOff.lerp(dPos, 1-Math.pow(0.05,dt));
+  camera.position.set(fx+camOff.x, fy+camOff.y, fz+camOff.z);
+  camera.lookAt(fx,fy,fz);
+  camera.fov += (fov-camera.fov)*Math.min(1,dt*1.6); camera.updateProjectionMatrix();
+}
 
 // OrbitControls for free-look (rides along with Pippin)
 const controls=new OrbitControls(camera, renderer.domElement);
 controls.enableDamping=true; controls.dampingFactor=0.08; controls.enablePan=false;
 controls.minDistance=5; controls.maxDistance=46; controls.maxPolarAngle=Math.PI*0.52; controls.enabled=false;
 const hintEl=document.getElementById('hint');
-function enterFree(){ if(camMode==='free'||phase!=='flight') return; camMode='free'; controls.enabled=true; controls.target.copy(carpet.position).y+=2; document.getElementById('btnCam').textContent='🎬'; hintEl.style.opacity='0'; faceT=0; wasFace=false; barsEl().classList.remove('on'); moodEl().style.opacity='0'; }
-function enterCinematic(){ camMode='cinematic'; controls.enabled=false; camOff.copy(camera.position).sub(carpet.position); lookOff.copy(controls.target).sub(carpet.position); camInit=true; document.getElementById('btnCam').textContent='🎥'; }
-renderer.domElement.addEventListener('pointerdown',()=>enterFree());
+function enterFree(){ if(camMode==='free'||phase!=='flight') return; camMode='free'; controls.enabled=true; controls.target.copy(carpet.position).y+=2; hintEl.style.opacity='0'; barsEl().classList.remove('on'); moodEl().style.opacity='0'; }
+function enterCinematic(){ camMode='cinematic'; controls.enabled=false; camOff.copy(camera.position).sub(tmp.set(carpet.position.x,carpet.position.y+lerp(1.95,2.35,cl),carpet.position.z)); camInit=true; }
+// interaction: tap Pippin → a fitting emote for where he is · drag/scroll → free-look
+const raycaster=new THREE.Raycaster(); const ndc=new THREE.Vector2();
+let pdX=0,pdY=0,pdHit=false,pdMoved=false;
+renderer.domElement.addEventListener('pointerdown',e=>{ pdX=e.clientX; pdY=e.clientY; pdMoved=false; ndc.set((e.clientX/innerWidth)*2-1,-(e.clientY/innerHeight)*2+1); raycaster.setFromCamera(ndc,camera); pdHit = !inFinale && rider.children.length>0 && raycaster.intersectObject(rider,true).length>0; if(!pdHit) enterFree(); });
+renderer.domElement.addEventListener('pointermove',e=>{ if(e.buttons && !pdMoved && (Math.abs(e.clientX-pdX)+Math.abs(e.clientY-pdY))>6){ pdMoved=true; if(pdHit) enterFree(); } });
+renderer.domElement.addEventListener('pointerup',()=>{ if(!pdMoved && pdHit && !inFinale && phase==='flight'){ if(!emName) playEmote(pickActEmote()); } });
 renderer.domElement.addEventListener('wheel',()=>enterFree(),{passive:true});
 
 // ---- Emotes (procedural body language) ----
-const EMO={ hop:1.0, spin:1.4, dance:2.6, nod:1.0, cheer:1.5, wave:1.7, gaze:3.4, shiver:1.8 };
-const EMO_KEYS={'1':'hop','2':'spin','3':'dance','4':'nod','5':'cheer','6':'wave','7':'gaze','8':'shiver'};
-// emotes that fit each act (auto-director draws from the current act's pool)
+const EMO={ hop:1.0, spin:1.4, dance:2.6, nod:1.2, cheer:1.5, wave:1.7, gaze:3.2, shiver:1.8, peek:1.8, glance:2.0 };
+const EMO_KEYS={'1':'hop','2':'spin','3':'dance','4':'nod','5':'cheer','6':'wave','7':'gaze','8':'glance'};
+// emotes that fit each act — mostly subtle (glance/nod/gaze), big reactions are rare
 const EMO_ACT=[
-  ['wave','nod','gaze'],            // 0 dawn — greet the day
-  ['gaze','gaze','nod','wave'],     // 1 stone forest — awe at the pillars
-  ['nod','wave','hop'],             // 2 alpine lakes — calm, wave at the fish
-  ['shiver','shiver','nod','hop'],  // 3 snowy pass — brr!
-  ['dance','cheer','hop','dance'],  // 4 forest rain — dancing in the rain
-  ['cheer','spin','hop','cheer'],   // 5 desert — heroic & excited
-  ['gaze','gaze','nod','wave'],     // 6 night — wonder at the stars
+  ['glance','nod','wave','glance'],   // 0 dawn
+  ['gaze','glance','nod','glance'],   // 1 stone forest — quiet awe
+  ['glance','nod','wave','peek'],     // 2 alpine lakes
+  ['shiver','glance','nod'],          // 3 snowy pass
+  ['glance','nod','dance','glance'],  // 4 forest rain — a touch playful
+  ['glance','cheer','nod','gaze'],    // 5 desert
+  ['gaze','glance','nod','glance'],   // 6 night — wonder
+  ['gaze','glance','nod'],            // 7 beyond the stars
+  ['gaze','glance','wave','nod'],     // 8 worlds without end
+  ['glance','gaze','nod','glance'],   // 9 the asteroid belt
+  ['gaze','glance','nod'],            // 10 the great spiral
+  ['gaze','nod'],                     // 11 event horizon
 ];
-const ACT_SIG=['wave','gaze','wave','shiver','dance','cheer','gaze']; // signature reaction on entering each act
-let emName=null, emT=0, emDur=0, emNext=rand(4,7);
-function playEmote(n){ if(!EMO[n]) return; emName=n; emT=0; emDur=EMO[n]; }
+let emName=null, emT=0, emDur=0, emDir=1, emNext=rand(12,22);
+function playEmote(n){ if(!EMO[n]) return; emName=n; emT=0; emDur=EMO[n]; emDir=Math.random()<0.5?-1:1; }
 function pickActEmote(){ const pool=EMO_ACT[curAct]||['nod']; return pool[(Math.random()*pool.length)|0]; }
 function updateRider(dt){
-  if(phase==='flight'){ emNext-=dt; if(emNext<=0 && !emName){ playEmote(pickActEmote()); const calm=(curAct===0||curAct===2||curAct===6); emNext=calm?rand(7,12):rand(4.5,8); } }
+  if(phase==='flight'){ emNext-=dt; if(emNext<=0 && !emName){ playEmote(pickActEmote()); const calm=(curAct===0||curAct===2||curAct>=6); emNext=calm?rand(30,52):rand(22,40); } }
   let py=Math.sin(t*2.2)*0.04, rx=0, ry=0, rz=Math.sin(t*1.5)*0.04, sx=1, sy=1, sz=1;
   if(emName){ emT+=dt; const p=Math.min(1,emT/emDur);
     if(emName==='hop'){ const hh=Math.sin(p*Math.PI); py+=hh*0.9; const sq=Math.sin(p*Math.PI*2)*0.10; sy+=sq; sx-=sq*0.5; sz-=sq*0.5; }
@@ -415,8 +530,10 @@ function updateRider(dt){
     else if(emName==='nod'){ rx+=Math.sin(p*Math.PI*3)*0.28; }
     else if(emName==='cheer'){ py+=Math.abs(Math.sin(p*Math.PI*2))*0.7; rx-=Math.sin(p*Math.PI)*0.18; }
     else if(emName==='wave'){ rz+=Math.sin(p*Math.PI*4)*0.22; rx-=0.06; }
-    else if(emName==='gaze'){ const up=Math.sin(p*Math.PI); rx-=up*0.38; ry+=Math.sin(t*0.9)*0.12*up; py+=up*0.1; } // lean back & look around in wonder
+    else if(emName==='gaze'){ const up=Math.sin(p*Math.PI); rx-=up*0.28; ry+=Math.sin(t*0.8)*0.10*up; py+=up*0.08; } // lean back & look up in wonder
     else if(emName==='shiver'){ const q=Math.sin(p*Math.PI); rz+=Math.sin(t*42)*0.05*q; rx+=Math.sin(t*38)*0.04*q; py-=0.05*q; sy-=0.04*q; } // brr
+    else if(emName==='peek'){ const q=Math.sin(p*Math.PI); rx+=q*0.30; py-=q*0.06; } // leans down to look
+    else if(emName==='glance'){ const q=Math.sin(p*Math.PI); ry+=q*0.42*emDir; rx+=q*0.05; } // turns a little to look at something
     if(emT>=emDur) emName=null;
   }
   rider.position.set(0,py,0); rider.rotation.set(rx,ry,rz); rider.scale.set(sx,sy,sz);
@@ -427,7 +544,8 @@ let audio=null, musicOn=true;
 const CHORDS=[ [130.81,164.81,196.00], [110.00,130.81,164.81], [87.31,110.00,130.81], [98.00,123.47,146.83] ]; // C Am F G
 const PENTA=[523.25,587.33,659.25,783.99,880.00, 1046.5,1174.7]; // C5..D6
 // per-act mood: [pad lowpass Hz, bell density, melody octave]
-const MUSIC_MOOD=[ [620,0.42,1], [950,0.50,1], [1300,0.55,1], [780,0.40,1], [1150,0.64,1], [1500,0.56,1], [470,0.40,2] ];
+const MUSIC_MOOD=[ [620,0.42,1], [950,0.50,1], [1300,0.55,1], [780,0.40,1], [1150,0.64,1], [1500,0.56,1], [470,0.40,2],
+  [430,0.42,2], [560,0.50,2], [600,0.48,2], [640,0.52,2], [320,0.30,2] ]; // 7 beyond, 8 worlds, 9 asteroids, 10 spiral, 11 event horizon
 function initAudio(){ if(audio) return; const Ctx=window.AudioContext||window.webkitAudioContext; if(!Ctx) return; const ctx=new Ctx();
   const master=ctx.createGain(); master.gain.value=0; master.connect(ctx.destination);
   const dl=ctx.createDelay(0.6); dl.delayTime.value=0.34; const fb=ctx.createGain(); fb.gain.value=0.32; const wet=ctx.createGain(); wet.gain.value=0.26; dl.connect(fb); fb.connect(dl); dl.connect(wet); wet.connect(master);
@@ -447,20 +565,75 @@ function scheduler(){ if(!audio) return; const ctx=audio.ctx;
   }
   setTimeout(scheduler,70);
 }
-function toggleMusic(){ if(!audio) return; musicOn=!musicOn; audio.master.gain.linearRampToValueAtTime(musicOn?0.55:0.0, audio.ctx.currentTime+0.4); document.getElementById('btnMusic').textContent=musicOn?'🔊':'🔇'; document.getElementById('btnMusic').classList.toggle('off',!musicOn); }
+function toggleMusic(){ if(!audio) return; musicOn=!musicOn; audio.master.gain.linearRampToValueAtTime(musicOn?0.55:0.0, audio.ctx.currentTime+0.4); const b=document.getElementById('mute'); b.textContent=musicOn?'♪':'✕'; }
 
 // ---- Begin / input ----
 function begin(){ const s=document.getElementById('start'); if(!s.classList.contains('show')) return; s.classList.remove('show'); phase='intro'; introT=0; initAudio(); if(audio&&audio.ctx.state==='suspended') audio.ctx.resume(); setTimeout(()=>hintEl.style.opacity='',6000); }
 document.getElementById('start').addEventListener('click', begin);
-document.getElementById('btnCam').addEventListener('click', ()=> camMode==='cinematic'?enterFree():enterCinematic());
-document.getElementById('btnEmote').addEventListener('click', ()=>{ const o=['hop','spin','dance','cheer','wave']; playEmote(o[(Math.random()*o.length)|0]); });
-document.getElementById('btnMusic').addEventListener('click', toggleMusic);
+document.getElementById('mute').addEventListener('click', e=>{ e.stopPropagation(); toggleMusic(); });
 addEventListener('keydown', e=>{ const k=e.key.toLowerCase(); if(phase==='await'&&(k===' '||k==='enter')){ begin(); return; } if(k==='c'){ camMode==='cinematic'?enterFree():enterCinematic(); } else if(k==='m'){ toggleMusic(); } else if(EMO_KEYS[k]){ playEmote(EMO_KEYS[k]); } });
+
+// ---- The black-hole finale ----
+function rugVisible(b){ rug.visible=b; underGlow.visible=b; for(const g of tassels) g.visible=b; }
+function setMusic(padF,bp,oct){ if(!audio) return; audio.padF.frequency.value += (padF-audio.padF.frequency.value)*0.05; audio.bellProb=bp; audio.octave=oct; }
+function resetAfterFinale(){ inFinale=false; finT=0; journeyZ=0; looped=true; eyeClose=0; rider.visible=true; rider.scale.set(1,1,1); rider.position.set(0,0,0); rider.rotation.set(0,0,0); carpet.rotation.set(0,0,0); rugVisible(true); faceMat.uniforms.uOp.value=0; vortex.visible=false; barsEl().classList.remove('on'); moodEl().style.opacity='0'; curAct=-1; camInit=false; if(audio) audio.master.gain.linearRampToValueAtTime(musicOn?0.55:0,audio.ctx.currentTime+1); }
+// finale camera: orbit around his current position. ang=0 behind (he faces the hole, +z), ang=π in front (his face)
+function finOrbitCam(ang, dist, elev, dt){
+  const fx=carpet.position.x, fy=carpet.position.y+1.6, fz=carpet.position.z;
+  const ce=Math.cos(elev), se=Math.sin(elev);
+  camTarget.set(fx+ce*Math.sin(ang)*dist, fy+se*dist, fz-ce*Math.cos(ang)*dist);
+  camera.position.lerp(camTarget, 1-Math.pow(0.05,dt));
+  camera.lookAt(fx,fy,fz);
+  camera.fov += (42-camera.fov)*Math.min(1,dt*1.5); camera.updateProjectionMatrix();
+}
+function runFinale(dt){
+  finT+=dt; const bh=blackHole.position;
+  key.intensity=Math.max(key.intensity,3.2);
+  const hov=[bh.x, bh.y+2, bh.z-26]; // hover point in front of the hole
+  if(finT<3.0){ // APPROACH — glide to the hover point, camera behind
+    carpet.position.lerp(camTarget.set(hov[0],hov[1],hov[2]), 0.05);
+    carpet.rotation.set(lerp(carpet.rotation.x,0,0.08), lerp(carpet.rotation.y,0,0.08), lerp(carpet.rotation.z,0,0.08));
+    rider.visible=true; rider.scale.set(1,1,1); rider.position.set(0,Math.sin(t*2)*0.03,0); rider.rotation.set(0,0,Math.sin(t*1.1)*0.025); eyeClose=0;
+    finOrbitCam(0, 15, 0.18, dt);
+    barsEl().classList.add('on'); moodEl().textContent='into the infinite'; moodEl().style.opacity='1'; fadeEl.style.opacity=0; setMusic(300,0.16,1);
+  } else if(finT<9.0){ // PAN AROUND + CLOSE EYES — becoming one with the black hole
+    const op=ss(0,1,(finT-3.0)/6.0);
+    carpet.position.lerp(camTarget.set(hov[0],hov[1],hov[2]), 0.05); carpet.rotation.set(0,0,0);
+    rider.visible=true; rider.scale.set(1,1,1); rider.position.set(0,Math.sin(t*1.6)*0.025,0);
+    rider.rotation.set(-0.12*ss(0.2,1,op),0,Math.sin(t*0.9)*0.02);   // slight serene tilt up
+    eyeClose=ss(0.1,0.7,op);                                          // eyes close as the camera swings to his face
+    finOrbitCam(op*Math.PI*2, lerp(15,14,op), 0.16, dt);             // one slow revolution, ends behind
+    barsEl().classList.add('on'); moodEl().textContent='into the infinite'; moodEl().style.opacity='1'; fadeEl.style.opacity=0; setMusic(lerp(300,240,op),0.12,1);
+  } else if(finT<15.5){ // DESCEND & SHRINK — static shot; he sinks into the event horizon
+    const p=ss(0,1,(finT-9.0)/6.5);
+    eyeClose=1; carpet.rotation.set(0,0,0);
+    carpet.position.set(lerp(hov[0],bh.x,p), lerp(hov[1],bh.y-1,p), lerp(hov[2],bh.z-3,p));  // glides from hover into the hole
+    const S=lerp(1,0.04,Math.pow(p,1.25)); rider.visible=true; rider.scale.set(S,S,S); rider.position.set(0,Math.sin(t*1.4)*0.02,0); rider.rotation.set(0,0,0);
+    camera.position.set(bh.x, bh.y+6, bh.z-40); camera.lookAt(bh.x, bh.y, bh.z-2); // fixed (static shot), behind — watching him sink into the hole
+    camera.fov+=(40-camera.fov)*Math.min(1,dt*2); camera.updateProjectionMatrix();
+    barsEl().classList.add('on'); moodEl().style.opacity='0'; setMusic(lerp(240,720,p),0.05,2);
+  } else if(finT<17.0){ // THE VOID — he is gone; the hole turns
+    rider.visible=false; rugVisible(false);
+    camera.position.lerp(camTarget.set(bh.x, bh.y+1, bh.z-50), 0.05); camera.lookAt(bh.x, bh.y, bh.z);
+    camera.fov+=(42-camera.fov)*Math.min(1,dt*2); camera.updateProjectionMatrix();
+    fadeEl.style.opacity = ss(15.5,16.0,finT)*0.5*(1-ss(16.5,17.0,finT));
+    if(audio) audio.master.gain.linearRampToValueAtTime(0.16, audio.ctx.currentTime+0.3); setMusic(640,0.04,2);
+  } else if(finT<23.0){ // THE RETURN — his smiling face appears on the surface of the black hole
+    rider.visible=false; rugVisible(false);
+    const p=ss(0,1,(finT-17.0)/3.0); faceMat.uniforms.uOp.value=p;
+    camera.position.lerp(camTarget.set(bh.x, bh.y+0.4, lerp(bh.z-66,bh.z-48,p)), 0.05); camera.lookAt(bh.x, bh.y, bh.z);
+    camera.fov+=(40-camera.fov)*Math.min(1,dt*2); camera.updateProjectionMatrix();
+    barsEl().classList.remove('on'); moodEl().style.opacity='0'; fadeEl.style.opacity=0;
+    if(audio && finT<17.25) audio.master.gain.linearRampToValueAtTime(musicOn?0.6:0, audio.ctx.currentTime+2.6); setMusic(1500,0.7,2);
+  } else { // fade to black → reborn at dawn
+    faceMat.uniforms.uOp.value=1; fadeEl.style.opacity=ss(23.0,24.5,finT); if(finT>=24.7) resetAfterFinale();
+  }
+}
 
 function animate(){
   requestAnimationFrame(animate);
   const dt=Math.min(clock.getDelta(),0.05); t+=dt;
-  if(phase==='flight'){ journeyZ+=dt*SPEED; if(journeyZ>=COURSE){ journeyZ-=COURSE; looped=true; } }
+  if(phase==='flight' && !inFinale){ journeyZ+=dt*speedAt(journeyZ); if(journeyZ>=BH_Z){ journeyZ=BH_Z; inFinale=true; finT=0; } }
   const z=journeyZ, y=altitudeAt(z), x=lateralAt(z);
 
   // time of day
@@ -471,17 +644,26 @@ function animate(){
   sun.material.color.copy(T.sunCol); sunGlow.material.color.copy(T.sunCol);
   const sunDir=tmp.set(-0.35,T.sunElev,0.9).normalize(); sun.position.copy(sunDir).multiplyScalar(820); sunGlow.position.copy(sun.position);
   sun.scale.setScalar(T.sunSize); sunGlow.scale.setScalar(T.sunSize*2.4); sun.material.opacity=1; sun.visible=T.sunElev>-0.1;
-  moon.visible=T.night>0.4; moonGlow.material.opacity=T.night*0.6;
+  moon.visible=(T.night>0.4) && z<2160; moonGlow.material.opacity=(z<2160?T.night*0.6:0);
   const starF=Math.max(0,(T.night-0.25))*1.3; galaxy.material.opacity=starF; nebula.material.opacity=starF*0.75;
+  // deep space objects (moon flyby, planets, galaxies, black hole)
+  const inSpace = z>1900 || inFinale; spaceGroup.visible=inSpace;
+  if(inSpace){ for(const p of planets){ p.rotation.y+=p.userData.spin*dt; const op=ss(p.position.z-560,p.position.z-180,z); for(const m of p.userData.mats) m[0].opacity=m[1]*op; } for(const g of galaxSpin) g.rotation.z+=g.userData.spin*dt; bhDisk.rotation.z+=dt*0.5; for(const o of spaceGroup.children){ if(o.userData.bb) o.quaternion.copy(camera.quaternion); }
+    for(const a of asteroids){ a.rotation.x+=a.userData.rx*dt; a.rotation.y+=a.userData.ry*dt; a.position.x+=a.userData.drift*dt; }
+    ufo.userData.t+=dt; const ut=ufo.userData.t; ufo.position.x=55+Math.sin(ut*0.13)*78; ufo.position.y=98+Math.sin(ut*0.5)*4; ufo.rotation.y+=dt*0.7; ufoLights.forEach((l,i)=>l.material.color.setHSL((ut*0.45+i*0.12)%1,0.9,0.6)); }
 
-  // carpet placement + banking
-  carpet.position.set(x,y,z);
-  const dz=2.0, xA=lateralAt(z+dz), yA=altitudeAt(z+dz);
-  carpet.rotation.y=Math.atan2(xA-x,dz);
-  carpet.rotation.z=THREE.MathUtils.clamp((x-xA)*0.5,-0.35,0.35)+Math.sin(t*0.7)*0.03;
-  carpet.rotation.x=THREE.MathUtils.clamp((y-yA)*0.25,-0.25,0.25)-0.05+Math.sin(t*1.1)*0.02;
-  carpet.position.y+=Math.sin(t*1.3)*0.25;
-  updateRider(dt);
+  // carpet placement + banking (skipped during the black-hole finale, which drives everything manually)
+  if(!inFinale){
+    carpet.position.set(x,y,z);
+    const dz=2.0, xA=lateralAt(z+dz), yA=altitudeAt(z+dz);
+    carpet.rotation.y=Math.atan2(xA-x,dz);
+    carpet.rotation.z=THREE.MathUtils.clamp((x-xA)*0.5,-0.35,0.35)+Math.sin(t*0.7)*0.03;
+    carpet.rotation.x=THREE.MathUtils.clamp((y-yA)*0.25,-0.25,0.25)-0.05+Math.sin(t*1.1)*0.02;
+    carpet.position.y+=Math.sin(t*1.3)*0.25;
+    updateRider(dt);
+  }
+  // apply eyelids every frame
+  for(const l of eyelidMeshes) l.scale.setScalar(Math.max(0.0001, eyeClose*1.16));
 
   // carpet ripple + tassels
   for(let i=0;i<rugPos.count;i++){ const bx=rugBase[i*3], by=rugBase[i*3+1]; rugPos.setZ(i, Math.sin(by*1.5+t*3)*0.22+Math.sin(bx*2.2-t*2.2)*0.10+Math.sin((bx+by)*1.1+t*1.5)*0.06); }
@@ -489,15 +671,19 @@ function animate(){
   tassels.forEach(g=>{ g.position.y=Math.sin(g.userData.edge*CD/2*1.5+t*3)*0.22+Math.sin(g.userData.x*2.2-t*2.2)*0.10; g.rotation.x=Math.sin(t*4+g.userData.phase)*0.25; g.rotation.z=Math.cos(t*3+g.userData.phase)*0.15; });
 
   // sparkles
-  emitAcc+=dt; while(emitAcc>0.018){ emitAcc-=0.018; emitSparkle(carpet.position.x,carpet.position.y,carpet.position.z); }
+  if(!inFinale){ emitAcc+=dt; while(emitAcc>0.018){ emitAcc-=0.018; emitSparkle(carpet.position.x,carpet.position.y,carpet.position.z); } }
   for(let i=0;i<SPN;i++){ if(spLife[i]<=0){ spCol[i*3]=spCol[i*3+1]=spCol[i*3+2]=0; continue; } spLife[i]-=dt; spPos[i*3]+=spVel[i*3]*dt; spPos[i*3+1]+=spVel[i*3+1]*dt; spPos[i*3+2]+=spVel[i*3+2]*dt; const f=Math.max(0,spLife[i]/spMax[i]); spCol[i*3]=spBase[i*3]*f; spCol[i*3+1]=spBase[i*3+1]*f; spCol[i*3+2]=spBase[i*3+2]*f; }
   spGeo.attributes.position.needsUpdate=true; spGeo.attributes.color.needsUpdate=true;
+
+  // shooting stars (night + space) — and he notices them
+  if(z>1850 || inFinale){ shootNext-=dt; if(shootNext<=0){ shootNext=rand(3.5,8); const s=shooters.find(o=>o.userData.life<=0); if(s){ const dir=tmp.set(rand(-1,1),-0.32,rand(-1,1)).normalize(); s.userData.vel.copy(dir).multiplyScalar(rand(45,72)); s.position.set(camera.position.x+rand(-70,70), camera.position.y+rand(26,56), camera.position.z+rand(-30,90)); s.quaternion.setFromUnitVectors(YAXIS,dir); s.userData.life=s.userData.max=rand(0.8,1.3); s.visible=true; if(!emName && !inFinale && camMode==='cinematic' && Math.random()<0.5) playEmote('gaze'); } } }
+  for(const s of shooters){ if(s.userData.life>0){ s.userData.life-=dt; s.position.addScaledVector(s.userData.vel,dt); const o=Math.sin((s.userData.life/s.userData.max)*Math.PI); s.userData.tail.material.opacity=o*0.85; s.userData.head.material.opacity=o; if(s.userData.life<=0) s.visible=false; } }
 
   // birds flapping + circling
   for(const b of birds){ b.userData.ang+=b.userData.spd*dt; const c=b.userData.center, r=b.userData.rad; b.position.set(c.x+Math.cos(b.userData.ang)*r, c.y+Math.sin(t*0.6+b.userData.phase)*0.6, c.z+Math.sin(b.userData.ang)*r); b.rotation.y=-b.userData.ang+Math.PI/2*(b.userData.spd>0?1:-1); const fl=Math.sin(t*b.userData.flap+b.userData.phase)*0.6+0.15; b.userData.wings[0].rotation.z=fl; b.userData.wings[1].rotation.z=-fl; }
 
   // fish ripples + jumps (only when over lakes)
-  for(const f of fishes){ f.userData.t-=dt; if(!f.userData.active && f.userData.t<=0 && Math.abs(z-920)<260){ const L=lakes[(Math.random()*lakes.length)|0]; const a=rand(0,6.28), rr=rand(0,L.r*0.7); f.userData.lake={x:L.x+Math.cos(a)*rr,z:L.z+Math.sin(a)*rr}; f.userData.active=true; f.userData.jt=0; f.visible=true; } if(f.userData.active){ f.userData.jt+=dt; const p=f.userData.jt/1.0; const ly=Math.sin(p*Math.PI)*2.2; f.position.set(f.userData.lake.x,0.5+ly,f.userData.lake.z); f.rotation.x=-Math.cos(p*Math.PI)*1.2; if(p>=1){ f.userData.active=false; f.visible=false; f.userData.t=rand(3,9); spawnRipple(f.userData.lake.x,f.userData.lake.z); } } }
+  for(const f of fishes){ f.userData.t-=dt; if(!f.userData.active && f.userData.t<=0 && Math.abs(z-920)<260){ const L=lakes[(Math.random()*lakes.length)|0]; const a=rand(0,6.28), rr=rand(0,L.r*0.7); f.userData.lake={x:L.x+Math.cos(a)*rr,z:L.z+Math.sin(a)*rr}; f.userData.active=true; f.userData.jt=0; f.visible=true; if(!emName && !inFinale && Math.random()<0.7) playEmote('peek'); } if(f.userData.active){ f.userData.jt+=dt; const p=f.userData.jt/1.0; const ly=Math.sin(p*Math.PI)*2.2; f.position.set(f.userData.lake.x,0.5+ly,f.userData.lake.z); f.rotation.x=-Math.cos(p*Math.PI)*1.2; if(p>=1){ f.userData.active=false; f.visible=false; f.userData.t=rand(3,9); spawnRipple(f.userData.lake.x,f.userData.lake.z); } } }
   if(Math.random()<dt*1.5 && Math.abs(z-920)<260){ const L=lakes[(Math.random()*lakes.length)|0]; const a=rand(0,6.28),rr=rand(0,L.r*0.8); spawnRipple(L.x+Math.cos(a)*rr,L.z+Math.sin(a)*rr); }
   for(const m of ripples){ if(m.userData.life>0){ m.userData.life-=dt; const p=1-m.userData.life/m.userData.max; m.scale.setScalar(1+p*8); m.material.opacity=(1-p)*0.5; if(m.userData.life<=0) m.visible=false; } }
 
@@ -511,25 +697,17 @@ function animate(){
 
   // ---- camera director ----
   const heading=carpet.rotation.y;
-  if(camMode==='free'){
+  if(inFinale){ runFinale(dt); }
+  else if(camMode==='free'){
     controls.target.lerp(tmp.copy(carpet.position).setY(carpet.position.y+2), 1-Math.pow(0.0008,dt));
     controls.update();
-  } else {
-    let pOff, lOff, fov, k, cut=false;
-    if(phase==='await'){ pOff=[0.6,2.55,4.0+Math.sin(t*0.4)*0.25]; lOff=[0,2.5,0]; fov=44; k=1-Math.pow(0.04,dt); }
-    else if(phase==='intro'){ introT+=dt/4.6; const e=ss(0,1,introT); pOff=[lerp(0.6,7,e),lerp(2.55,3.7,e),lerp(4.0,10.5,e)]; lOff=[0,lerp(2.5,2.1,e),0]; fov=lerp(44,50,e); k=1-Math.pow(0.05,dt); if(introT>=1){ phase='flight'; shotIdx=0; shotT=0; } }
-    else { // flight
-      if(faceT>0){ faceT-=dt; if(!wasFace){ cut=true; wasFace=true; barsEl().classList.add('on'); moodEl().textContent=MOODS[curAct]||''; moodEl().style.opacity='1'; } pOff=FACE.p; lOff=FACE.l; fov=FACE.fov; }
-      else { if(wasFace){ cut=true; wasFace=false; barsEl().classList.remove('on'); moodEl().style.opacity='0'; shotT=0; shotIdx=(shotIdx+1)%SHOTS.length; } shotT+=dt; if(shotT>shotDur){ shotT=0; shotIdx=(shotIdx+1)%SHOTS.length; cut=true; } const sh=SHOTS[shotIdx]; pOff=sh.p; lOff=sh.l; fov=sh.fov; }
-      k=1-Math.pow(0.004,dt);
-    }
-    // smooth the OFFSET from the carpet (so fast carpet motion never lags the framing), then add live position
-    place(dPos,pOff,heading); place(dLook,lOff,heading);
-    tmp.copy(dPos).sub(carpet.position); const tlx=dLook.x-carpet.position.x, tly=dLook.y-carpet.position.y, tlz=dLook.z-carpet.position.z;
-    if(!camInit || cut){ camOff.copy(tmp); lookOff.set(tlx,tly,tlz); camInit=true; camera.fov=fov; camera.updateProjectionMatrix(); }
-    else { camOff.lerp(tmp,k); lookOff.lerp(tmp.set(tlx,tly,tlz),k); if(Math.abs(camera.fov-fov)>0.05){ camera.fov+=(fov-camera.fov)*Math.min(1,dt*1.6); camera.updateProjectionMatrix(); } }
-    camera.position.copy(carpet.position).add(camOff);
-    camLook.copy(carpet.position).add(lookOff); camera.lookAt(camLook);
+  } else { // steady follow — await / intro / flight
+    let clTarget;
+    if(phase==='await'){ clTarget=1; }                                   // start screen: on his face
+    else if(phase==='intro'){ introT+=dt/5.0; clTarget=1-ss(0,1,introT); if(introT>=1) phase='flight'; } // pull back to begin
+    else { clTarget=0.6*ss(2120,2185,z)*(1-ss(2255,2330,z)); }           // one subtle zoom as he enters space
+    cl += (clTarget-cl)*Math.min(1,dt*0.9);
+    updateOrbitCamera(dt);
   }
 
   // rigs follow
@@ -537,15 +715,12 @@ function animate(){
   precipRig.position.copy(carpet.position);
   key.position.copy(carpet.position).addScaledVector(lightDir,90); key.target.position.copy(carpet.position);
 
-  // act label + scene-change reaction (face close-up) + occasional mid-act beats
+  // act label (a small subtle emote on entering a new scene)
   let ai=0; for(let i=0;i<ACTS.length;i++) if(z>=ACTS[i].z) ai=i;
-  if(phase==='flight'){
-    if(ai!==curAct){ triggerFace(3.2); playEmote(ACT_SIG[ai]); faceNext=rand(20,30); }   // new scene → show his reaction
-    else { faceNext-=dt; if(faceNext<=0 && faceT<=0 && camMode==='cinematic'){ triggerFace(3.0); playEmote(pickActEmote()); faceNext=rand(22,34); } }
-  }
+  if(phase==='flight' && ai!==curAct && !emName && !inFinale && Math.random()<0.5) playEmote('glance');
   setAct(ai);
-  if(audio){ const M=MUSIC_MOOD[curAct]||MUSIC_MOOD[0]; audio.padF.frequency.value += (M[0]-audio.padF.frequency.value)*Math.min(1,dt*0.5); audio.bellProb=M[1]; audio.octave=M[2]; }
-  let fade=0; if(phase==='flight'){ if(z>2080) fade=ss(2080,2150,z); else if(z<40 && looped) fade=1-ss(0,40,z); } fadeEl.style.opacity=fade;
+  if(audio && !inFinale){ const M=MUSIC_MOOD[curAct]||MUSIC_MOOD[0]; audio.padF.frequency.value += (M[0]-audio.padF.frequency.value)*Math.min(1,dt*0.5); audio.bellProb=M[1]; audio.octave=M[2]; }
+  if(!inFinale){ let fade=0; if(phase==='flight' && z<40 && looped) fade=1-ss(0,40,z); fadeEl.style.opacity=fade; }
 
   renderer.render(scene,camera);
 }

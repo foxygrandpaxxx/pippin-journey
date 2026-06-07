@@ -568,15 +568,30 @@ function scheduler(){ if(!audio) return; const ctx=audio.ctx;
 function toggleMusic(){ if(!audio) return; musicOn=!musicOn; audio.master.gain.linearRampToValueAtTime(musicOn?0.55:0.0, audio.ctx.currentTime+0.4); const b=document.getElementById('mute'); b.textContent=musicOn?'♪':'✕'; }
 
 // ---- Begin / input ----
-function begin(){ const s=document.getElementById('start'); if(!s.classList.contains('show')) return; s.classList.remove('show'); phase='intro'; introT=0; initAudio(); if(audio&&audio.ctx.state==='suspended') audio.ctx.resume(); setTimeout(()=>hintEl.style.opacity='',6000); }
+function begin(){ const s=document.getElementById('start'); if(!s.classList.contains('show')) return; s.classList.remove('show'); phase='intro'; introT=0; initAudio(); if(audio&&audio.ctx.state==='suspended') audio.ctx.resume(); setTimeout(()=>hintEl.style.opacity='',6000); if(REC) setTimeout(startRec,300); }
 document.getElementById('start').addEventListener('click', begin);
 document.getElementById('mute').addEventListener('click', e=>{ e.stopPropagation(); toggleMusic(); });
-addEventListener('keydown', e=>{ const k=e.key.toLowerCase(); if(phase==='await'&&(k===' '||k==='enter')){ begin(); return; } if(k==='c'){ camMode==='cinematic'?enterFree():enterCinematic(); } else if(k==='m'){ toggleMusic(); } else if(EMO_KEYS[k]){ playEmote(EMO_KEYS[k]); } });
+addEventListener('keydown', e=>{ const k=e.key.toLowerCase(); if(phase==='await'&&(k===' '||k==='enter')){ begin(); return; } if(k==='c'){ camMode==='cinematic'?enterFree():enterCinematic(); } else if(k==='m'){ toggleMusic(); } else if(k==='r'){ recording?stopRec():startRec(); } else if(EMO_KEYS[k]){ playEmote(EMO_KEYS[k]); } });
+
+// ---- Video export: open with ?record (4K) , or ?record=1440 / 1080 ; or press R to start/stop. Saves a .webm of one full journey ----
+const REC = new URLSearchParams(location.search).has('record');
+let mediaRec=null, recChunks=[], recording=false, recW=0, recH=0;
+function startRec(){ if(recording||typeof MediaRecorder==='undefined') return; const p=new URLSearchParams(location.search).get('record'); recH=(p&&/^\d+$/.test(p))?+p:2160; recW=Math.round(recH*16/9);
+  recording=true; renderer.setPixelRatio(1); renderer.setSize(recW,recH,false); camera.aspect=recW/recH; camera.updateProjectionMatrix();
+  const cs=renderer.domElement.captureStream(60);
+  if(audio){ try{ const d=audio.ctx.createMediaStreamDestination(); audio.master.connect(d); cs.addTrack(d.stream.getAudioTracks()[0]); }catch(e){} }
+  let mime='video/webm;codecs=vp9,opus'; if(!MediaRecorder.isTypeSupported(mime)) mime='video/webm;codecs=vp8,opus'; if(!MediaRecorder.isTypeSupported(mime)) mime='video/webm';
+  recChunks=[]; mediaRec=new MediaRecorder(cs,{mimeType:mime, videoBitsPerSecond: recH>=2000?48e6:recH>=1400?24e6:14e6});
+  mediaRec.ondataavailable=e=>{ if(e.data&&e.data.size) recChunks.push(e.data); };
+  mediaRec.onstop=()=>{ recDot(false); const W=innerWidth||1280, H=innerHeight||720; renderer.setPixelRatio(Math.min(devicePixelRatio,1.5)); renderer.setSize(W,H); camera.aspect=W/H; camera.updateProjectionMatrix(); const blob=new Blob(recChunks,{type:'video/webm'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='pippin-journey-'+recH+'p.webm'; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),8000); };
+  mediaRec.start(1000); recDot(true); }
+function stopRec(){ if(!recording||!mediaRec) return; recording=false; try{ mediaRec.stop(); }catch(e){} }
+function recDot(on){ let el=document.getElementById('recdot'); if(on&&!el){ el=document.createElement('div'); el.id='recdot'; el.style.cssText='position:fixed;top:10px;right:12px;z-index:9;color:#ff5a5a;font:600 12px system-ui;letter-spacing:1px'; el.textContent='● REC'; document.body.appendChild(el); } else if(!on&&el){ el.remove(); } }
 
 // ---- The black-hole finale ----
 function rugVisible(b){ rug.visible=b; underGlow.visible=b; for(const g of tassels) g.visible=b; }
 function setMusic(padF,bp,oct){ if(!audio) return; audio.padF.frequency.value += (padF-audio.padF.frequency.value)*0.05; audio.bellProb=bp; audio.octave=oct; }
-function resetAfterFinale(){ inFinale=false; finT=0; journeyZ=0; looped=true; eyeClose=0; rider.visible=true; rider.scale.set(1,1,1); rider.position.set(0,0,0); rider.rotation.set(0,0,0); carpet.rotation.set(0,0,0); rugVisible(true); faceMat.uniforms.uOp.value=0; vortex.visible=false; barsEl().classList.remove('on'); moodEl().style.opacity='0'; curAct=-1; camInit=false; if(audio) audio.master.gain.linearRampToValueAtTime(musicOn?0.55:0,audio.ctx.currentTime+1); }
+function resetAfterFinale(){ if(recording) stopRec(); inFinale=false; finT=0; journeyZ=0; looped=true; eyeClose=0; rider.visible=true; rider.scale.set(1,1,1); rider.position.set(0,0,0); rider.rotation.set(0,0,0); carpet.rotation.set(0,0,0); rugVisible(true); faceMat.uniforms.uOp.value=0; vortex.visible=false; barsEl().classList.remove('on'); moodEl().style.opacity='0'; curAct=-1; camInit=false; if(audio) audio.master.gain.linearRampToValueAtTime(musicOn?0.55:0,audio.ctx.currentTime+1); }
 // finale camera: orbit around his current position. ang=0 behind (he faces the hole, +z), ang=π in front (his face)
 function finOrbitCam(ang, dist, elev, dt){
   const fx=carpet.position.x, fy=carpet.position.y+1.6, fz=carpet.position.z;
@@ -726,7 +741,7 @@ function animate(){
 }
 function updatePrecip(sys, amt, dt){ sys.material.opacity=amt*(sys.userData.isSnow?0.95:0.7); if(amt<=0.001) return; const p=sys.geometry.attributes.position, v=sys.userData.vel, n=sys.userData.count; for(let i=0;i<n;i++){ p.array[i*3]+=v[i*3]*dt; p.array[i*3+1]+=v[i*3+1]*dt; p.array[i*3+2]+=v[i*3+2]*dt; if(p.array[i*3+1]<-20){ p.array[i*3]=rand(-26,26); p.array[i*3+1]=28+rand(0,6); p.array[i*3+2]=rand(-26,26); } else { if(p.array[i*3]>26)p.array[i*3]-=52; else if(p.array[i*3]<-26)p.array[i*3]+=52; if(p.array[i*3+2]>26)p.array[i*3+2]-=52; else if(p.array[i*3+2]<-26)p.array[i*3+2]+=52; } } p.needsUpdate=true; }
 animate();
-addEventListener('resize',()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
+addEventListener('resize',()=>{ if(recording) return; camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
 </script>
 </body>
 </html>
